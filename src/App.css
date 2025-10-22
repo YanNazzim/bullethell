@@ -1,38 +1,118 @@
+/* src/App.css */
 .App {
   text-align: center;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
 .App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+  background-color: #0f0c29; /* Darker header */
+  min-height: auto; /* Removed min-height */
+  padding: 20px 0; /* Adjusted padding */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   font-size: calc(10px + 2vmin);
   color: white;
+  border-bottom: 2px solid #61dafb; /* Added a neon border */
+  box-shadow: 0 4px 15px -5px #61dafb; /* Added a glow */
+}
+
+.App-header h1 {
+  margin: 0;
+  color: #61dafb;
+  font-size: 2.5rem;
+  text-shadow: 0 0 5px #61dafb, 0 0 10px #61dafb;
+}
+
+/* --- MOBILE CHANGE: Made stats bar responsive --- */
+.game-stats {
+  color: white;
+  display: flex;
+  flex-wrap: wrap; /* Allows items to stack on small screens */
+  justify-content: center; /* Changed from space-around */
+  gap: 20px 40px; /* Adjusted gap for wrapping */
+  font-size: 1.5rem;
+  width: 100%;
+  max-width: 600px;
+  margin: 15px auto 0;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(97, 218, 251, 0.3);
+  box-sizing: border-box; /* Ensures padding doesn't break width */
+}
+
+.game-stats-health-low {
+  color: #FF4444; /* Bright red for low health */
+  text-shadow: 0 0 5px #FF0000;
+  transform: scale(1.05);
+  transition: all 0.1s ease;
+}
+
+/* --- MOBILE CHANGE: Made game container responsive --- */
+#game-container {
+  width: 100%; /* Was 800px */
+  max-width: 800px; /* Added */
+  height: auto; /* Was 600px */
+  aspect-ratio: 4 / 3; /* Keeps the 800x600 ratio */
+  margin: 20px auto;
+  border: 2px solid #61dafb;
+  position: relative;
+  box-shadow: 0 0 20px #61dafb, 0 0 30px #61dafb inset; /* Added inner and outer glow */
+}
+
+/* Game Over Overlay Style */
+.game-over-overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.game-over-overlay h2 {
+  color: #FF0000;
+  font-size: 4rem;
+  text-shadow: 0 0 10px #FF0000, 0 0 20px #FF0000;
+}
+
+.controls-text {
+  color: white;
+  padding: 20px;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.controls-text p strong {
+  color: #61dafb;
+}
+
+/* New Button Style */
+.restart-button {
+  padding: 12px 24px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  background-color: #61dafb;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 5px;
+  font-family: 'Share Tech Mono', monospace;
+  font-weight: bold;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px #61dafb;
+}
+
+.restart-button:hover {
+  background-color: #ffffff;
+  color: #0f0c29;
+  box-shadow: 0 0 20px #ffffff;
+  transform: scale(1.05);
 }
 
 .App-link {
   color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
