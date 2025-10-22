@@ -3,6 +3,21 @@ import './App.css';
 import BulletHellGame from './BulletHellGame'; // Import the game component
 
 function App() {
+  // State for the orientation warning
+  const [showOrientationWarning, setShowOrientationWarning] = useState(
+    window.innerHeight > window.innerWidth
+  );
+
+  // State for pausing the game
+  const [isPaused, setIsPaused] = useState(false);
+
+  // --- FIX: Create a stable pause toggle function ---
+  // This function is now wrapped in useCallback, so it will not be
+  // re-created on every render, which stops the game from jittering.
+  const togglePause = useCallback(() => {
+    setIsPaused(p => !p);
+  }, []); // The empty array [] means it's created only once.
+
   // Game State to be displayed in the React UI
   const [gameState, setGameState] = useState({
     score: 0,
@@ -11,6 +26,7 @@ function App() {
   });
 
   // Handler to receive updates from the Phaser game
+  // This one is already correct!
   const handleGameUpdate = useCallback((data) => {
     setGameState(prevState => {
       let newState = { ...prevState };
@@ -31,10 +47,24 @@ function App() {
     });
   }, []);
 
-  // This JSX is now cleaned up to remove inline styles
-  // It relies entirely on App.css for styling
   return (
     <div className="App">
+      {/* Orientation Warning Overlay */}
+      {showOrientationWarning && (
+        <div className="orientation-overlay">
+          <div className="orientation-message">
+            <h2>Rotate Your Device</h2>
+            <p>For the best experience, please rotate your device to landscape mode.</p>
+            <button 
+              className="restart-button" 
+              onClick={() => setShowOrientationWarning(false)}
+            >
+              Start Game
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="App-header">
         <h1>Bullet Hell Survival</h1>
         {/* The Game Stats UI controlled by React State */}
@@ -43,6 +73,12 @@ function App() {
           <div className={gameState.health <= 2 ? 'game-stats-health-low' : ''}>
             HEALTH: {gameState.health} / 10
           </div>
+          {/* Pause Button */}
+          {!showOrientationWarning && (
+            <button className="pause-button" onClick={togglePause}> {/* <-- Use stable function */}
+              {isPaused ? 'Resume' : 'Pause'}
+            </button>
+          )}
         </div>
       </header>
       
@@ -54,13 +90,20 @@ function App() {
             <h2>GAME OVER</h2>
           </div>
         )}
-        {/* Pass the game update handler to the Phaser component */}
-        <BulletHellGame onUpdate={handleGameUpdate} />
+        
+        {/* Game only renders after warning is dismissed */}
+        {!showOrientationWarning && (
+          <BulletHellGame 
+            onUpdate={handleGameUpdate} 
+            isPaused={isPaused}
+            onTogglePause={togglePause} // <-- Pass stable function
+          />
+        )}
       </div>
 
       {/* Example UI Element */}
       <div className="controls-text">
-        <strong>WASD/Arrows</strong> to move. Avoid the red enemy bullets!
+        <p><strong>Touch</strong> or <strong>WASD/Arrows</strong> to move. Avoid the enemy ships!</p>
         <button 
           className="restart-button"
           onClick={() => window.location.reload()} // Simplest restart: reload the page

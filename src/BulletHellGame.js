@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react'; // <-- Added useRef
 import Phaser from 'phaser';
 
 // --- CONFIGURATION CONSTANTS ---
@@ -92,10 +92,13 @@ class MainScene extends Phaser.Scene {
         
         this.background = null;
         this.thrusterEmitter = null;
+        
+        this.onTogglePause = () => {}; // --- NEW: Callback for pausing
     }
     
     init(data) {
         this.onUpdate = data.onUpdate;
+        this.onTogglePause = data.onTogglePause; // --- NEW: Get pause callback from React
     }
 
     // 1. PRELOAD: Load all game assets
@@ -138,8 +141,10 @@ class MainScene extends Phaser.Scene {
             left: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
             right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D)
         };
-        this.input.keyboard.on('keydown-P', this.handlePause, this);
-        this.input.keyboard.on('keydown-ESC', this.handlePause, this);
+        
+        // --- NEW: Keyboard pause now calls React's pause function ---
+        this.input.keyboard.on('keydown-P', this.onTogglePause, this);
+        this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
 
 
         // 1. Player Bullets Group
@@ -209,7 +214,7 @@ class MainScene extends Phaser.Scene {
     update(time) {
         if (this.isGameOver) return;
 
-        // --- CONTROL CHANGE: Movement is now handled first ---
+        // Movement is handled first
         this.handlePlayerMovement();
 
         if (!this.physics.world.isPaused) {
@@ -252,60 +257,59 @@ class MainScene extends Phaser.Scene {
         }
     }
     
-    handlePause() {
-        if (this.isGameOver) return;
+    // --- NEW: This function is called by the React wrapper ---
+    handlePause(shouldPause) {
+        // Check if state is already correct
+        if (this.isGameOver || this.physics.world.isPaused === shouldPause) {
+            return; 
+        }
         
-        this.physics.world.isPaused = !this.physics.world.isPaused;
-        this.pauseText.setVisible(this.physics.world.isPaused);
-        this.autoFireEvent.paused = this.physics.world.isPaused;
+        this.physics.world.isPaused = shouldPause;
+        this.pauseText.setVisible(shouldPause);
+        this.autoFireEvent.paused = shouldPause;
 
-        console.log(`Game Paused: ${this.physics.world.isPaused}`);
+        console.log(`Game Paused: ${shouldPause}`);
     }
 
-    // --- CONTROL CHANGE: Updated to handle touch ---
+    // --- IMPROVED: handlePlayerMovement ---
     handlePlayerMovement() {
-        // --- NEW: Mobile Touch Controls ---
-        // Check if the primary pointer (finger/mouse) is down
-        if (this.input.activePointer.isDown) {
-            
-            // Get pointer's position in the game world, accounting for camera
-            const touchX = this.input.activePointer.worldX;
-            const touchY = this.input.activePointer.worldY;
-
-            // Move player towards the touch position
-            this.physics.moveToObject(this.player, { x: touchX, y: touchY }, PLAYER_SPEED);
-            
-            // Rotate player ship to face movement direction
-            const velX = this.player.body.velocity.x;
-            const velY = this.player.body.velocity.y;
-            if (velX !== 0 || velY !== 0) {
-                this.player.setRotation(Phaser.Math.Angle.Between(0, 0, velX, velY) + Math.PI / 2);
-            }
-            return; // Skip keyboard controls if touch is active
-        }
-
-        // --- Keyboard Controls (Original Logic) ---
+        // Start with no velocity
         this.player.setVelocity(0);
         let velX = 0;
         let velY = 0;
 
-        if (this.cursors.left.isDown || this.wasd.left.isDown) {
-            velX = -PLAYER_SPEED;
-        } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
-            velX = PLAYER_SPEED;
+        // --- Mobile Touch Controls ---
+        if (this.input.activePointer.isDown) {
+            const touchX = this.input.activePointer.worldX;
+            const touchY = this.input.activePointer.worldY;
+
+            // Calculate direction, but don't move yet
+            const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, touchX, touchY);
+            velX = Math.cos(angle) * PLAYER_SPEED;
+            velY = Math.sin(angle) * PLAYER_SPEED;
+            
+        } else { // --- Keyboard Controls (Only if not touching) ---
+            if (this.cursors.left.isDown || this.wasd.left.isDown) {
+                velX = -PLAYER_SPEED;
+            } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+                velX = PLAYER_SPEED;
+            }
+
+            if (this.cursors.up.isDown || this.wasd.up.isDown) {
+                velY = -PLAYER_SPEED;
+            } else if (this.cursors.down.isDown || this.wasd.down.isDown) {
+                velY = PLAYER_SPEED;
+            }
         }
 
-        if (this.cursors.up.isDown || this.wasd.up.isDown) {
-            velY = -PLAYER_SPEED;
-        } else if (this.cursors.down.isDown || this.wasd.down.isDown) {
-            velY = PLAYER_SPEED;
-        }
-
+        // --- Apply final velocity ---
         this.player.setVelocity(velX, velY);
-        if (velX !== 0 && velY !== 0) {
+        if (velX !== 0 && velY !== 0 && !this.input.activePointer.isDown) {
+            // Normalize keyboard diagonal speed
             this.player.body.velocity.normalize().scale(PLAYER_SPEED);
         }
         
+        // --- Rotation ---
         if (velX !== 0 || velY !== 0) {
             this.player.setRotation(Phaser.Math.Angle.Between(0, 0, velX, velY) + Math.PI / 2);
         }
@@ -482,7 +486,10 @@ class MainScene extends Phaser.Scene {
 
 // --- REACT COMPONENT (Wrapper) ---
 
-const BulletHellGame = ({ onUpdate }) => {
+const BulletHellGame = ({ onUpdate, isPaused, onTogglePause }) => { // <-- Added props
+    const gameRef = useRef(null); // Ref to store the game instance
+
+    // Effect for creating and destroying the game
     useEffect(() => {
         const config = {
             type: Phaser.AUTO,
@@ -508,13 +515,30 @@ const BulletHellGame = ({ onUpdate }) => {
         };
 
         const game = new Phaser.Game(config);
+        gameRef.current = game; // Store game instance in ref
         
-        game.scene.start('MainScene', { onUpdate: onUpdate || (() => {}) });
+        // Pass down the React callbacks
+        game.scene.start('MainScene', { 
+            onUpdate: onUpdate || (() => {}),
+            onTogglePause: onTogglePause || (() => {}) // Pass down the toggle
+        });
 
         return () => {
             game.destroy(true);
+            gameRef.current = null;
         };
-    }, [onUpdate]); 
+    }, [onUpdate, onTogglePause]); // <-- Add onTogglePause to deps
+
+    // Effect for handling the isPaused prop
+    useEffect(() => {
+        if (gameRef.current && gameRef.current.scene) {
+            const scene = gameRef.current.scene.getScene('MainScene');
+            // Check if scene exists and has the handlePause function
+            if (scene && scene.handlePause) {
+                scene.handlePause(isPaused); // Call the scene's pause function
+            }
+        }
+    }, [isPaused]); // Runs whenever isPaused prop changes
 
     return <></>; 
 };
