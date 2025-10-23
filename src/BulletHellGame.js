@@ -52,6 +52,20 @@ class Projectile extends Phaser.Physics.Arcade.Image {
         this.setActive(true).setVisible(true).setScale(0.03); 
         
         
+        
+        // --- HITBOX FIX ---
+        // The visual scale (0.03) is tiny, making the default hitbox sub-pixel.
+        // We override it with a 12px diameter (6px radius) circular hitbox
+        // to make collision detection fair and reliable.
+        this.body.setCircle(6); 
+        // The 'laser.png' sprite is 48x8 pixels.
+        // We offset the circle to center it on the sprite's original dimensions.
+        // OffsetX = (OriginalWidth / 2) - radius = (48 / 2) - 6 = 18
+        // OffsetY = (OriginalHeight / 2) - radius = (8 / 2) - 6 = -2
+        this.body.setOffset(18, -2);
+        // --- END HITBOX FIX ---
+
+
         const vx = Math.cos(angle) * BULLET_SPEED;
         const vy = Math.sin(angle) * BULLET_SPEED;
 
@@ -590,7 +604,9 @@ const BulletHellGame = ({ onUpdate, isPaused, onTogglePause }) => {
             game.destroy(true);
             gameRef.current = null;
         };
-    }, [onUpdate, onTogglePause]);
+      // --- BUG FIX: Removed 'onTogglePause' from dependency array ---
+      // This stops the game from re-creating itself when you pause/level up
+    }, [onUpdate, onShowUpgrade]); 
 
     // Effect for handling the isPaused prop
     useEffect(() => {
