@@ -10,6 +10,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "phaser": "^3.90.0",
+    "phaser3-rex-plugins": "^1.80.16",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-phaser-fiber": "^0.2.4",
