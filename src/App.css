@@ -51,7 +51,7 @@
   width: 100%;
   height: 100%;
   z-index: 10; 
-  pointer-events: none; 
+  pointer-events: none; /* Allows clicking through to the game */
 }
 
 
@@ -61,7 +61,7 @@
   top: 10px;
   left: 10px;
   z-index: 20;
-  pointer-events: auto; 
+  pointer-events: auto; /* This element IS clickable (for pause) */
   
   color: white;
   display: flex;
@@ -134,6 +134,7 @@
   height: 100%;
   background-color: rgba(0, 0, 0, 0.7);
   display: flex;
+  flex-direction: column; /* --- CHANGED --- */
   align-items: center;
   justify-content: center;
   z-index: 100; 
@@ -144,53 +145,18 @@
   color: #FF0000;
   font-size: 4rem;
   text-shadow: 0 0 10px #FF0000, 0 0 20px #FF0000;
+  margin-bottom: 20px; /* --- ADDED --- */
 }
 
-/* --- Orientation Overlay --- */
-.orientation-overlay {
-  position: fixed; 
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000; 
-  color: white;
-  text-align: center;
-  pointer-events: auto; 
-}
-
-.orientation-message {
-  padding: 20px;
-}
-
-.orientation-message h2 {
-  color: #61dafb;
-  font-size: 2rem;
-}
-
-.orientation-message p {
-  font-size: 1.2rem;
-  margin-bottom: 30px;
-}
-/* --- End Orientation Overlay --- */
+/* --- REMOVED: Orientation Overlay --- */
 
 
 /* --- controls-text (restart button area) --- */
 .controls-text {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20; 
-  pointer-events: auto;
-  padding: 0;
-}
-
-.controls-text p {
+  /* This class is no longer used in App.js */
   display: none; 
 }
+
 
 /* --- Upgrade Overlay --- */
 .upgrade-overlay {
@@ -235,6 +201,36 @@
 /* --- End Upgrade Overlay --- */
 
 
+/* --- NEW: Pause Menu Overlay --- */
+.pause-menu-overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 500; 
+  color: white;
+  pointer-events: auto; 
+}
+
+.pause-menu-overlay h2 {
+  color: #61dafb;
+  font-size: 3rem;
+  text-shadow: 0 0 10px #61dafb;
+  margin-bottom: 30px;
+}
+
+.pause-menu-overlay .restart-button {
+  font-size: 1.5rem;
+  padding: 15px 30px;
+  margin-bottom: 20px;
+}
+/* --- End Pause Menu --- */
+
+
 /* New Button Style */
 .restart-button {
   padding: 12px 24px;
@@ -261,7 +257,7 @@
 
 /* --- Pause Button Style --- */
 .pause-button {
-  padding: 8px 16px;
+  padding: 8px 10px; /* Adjusted padding for icon */
   font-size: 1rem;
   cursor: pointer;
   background-color: #61dafb;
@@ -274,10 +270,40 @@
   transition: all 0.2s ease;
   box-shadow: 0 0 10px #61dafb;
   pointer-events: auto; 
+  
+  /* --- NEW: For centering icon --- */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px; /* Set a min-width */
+  min-height: 38px; /* Set a min-height */
+  box-sizing: border-box;
 }
 
 .pause-button:hover {
   background-color: #ffffff;
+}
+
+/* --- NEW: Pause Icon (the "||") --- */
+.pause-icon {
+  width: 14px; /* Total width of icon */
+  height: 16px; /* Total height of icon */
+  position: relative;
+}
+.pause-icon::before,
+.pause-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 5px; /* Width of the bars */
+  height: 100%; /* Height of the bars */
+  background-color: #1a1a2e; /* Color of the bars */
+}
+.pause-icon::before {
+  left: 0; /* Position of the first bar */
+}
+.pause-icon::after {
+  right: 0; /* Position of the second bar */
 }
 
 

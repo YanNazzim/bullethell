@@ -266,8 +266,31 @@ class MainScene extends Phaser.Scene {
         
         this.input.keyboard.on('keydown-P', this.onTogglePause, this);
         this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
+        
+        // --- JOYSTICK CHANGE: Smaller and Bottom-Center ---
+        // This logic is now dynamic and will work with the new fullscreen size
+        if (this.sys.game.device.input.touch) {
+            // Position joystick in bottom-center of the *camera*
+            const joyStickX = this.cameras.main.width / 2;
+            const joyStickY = this.cameras.main.height * 0.85; // 85% down
+
+            // --- Use the mapped plugin 'this.joystickPlugin' from the scene ---
+            this.joystick = this.joystickPlugin.add(this, {
+                x: joyStickX,
+                y: joyStickY,
+                radius: 60, // Smaller base
+                base: this.add.circle(0, 0, 60, 0x888888, 0.3), // Faded base
+                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), // Smaller thumb
+                dir: '8dir', // 8 directions
+                forceMin: 16,
+            }).setScrollFactor(0); // Stick to camera
+
+            this.joyStickCursorKeys = this.joystick.createCursorKeys();
+        }
+        // --- End Joystick Creation ---
 
 
+        // 1. Player Bullets Group
         this.bullets = this.physics.add.group({
             classType: Projectile, 
             maxSize: 30,
@@ -293,6 +316,8 @@ class MainScene extends Phaser.Scene {
             active: false
         });
         
+        // This text is now hidden (we use the React pause menu)
+        // But it's good to keep for debugging
         this.pauseText = this.add.text(
             this.cameras.main.width / 2, 
             this.cameras.main.height / 2, 
@@ -390,7 +415,8 @@ class MainScene extends Phaser.Scene {
         }
         
         this.physics.world.isPaused = shouldPause;
-        this.pauseText.setVisible(shouldPause);
+        // We no longer show the Phaser-based "PAUSED" text
+        // this.pauseText.setVisible(shouldPause); 
         this.autoFireEvent.paused = shouldPause;
 
         this.enemies.getChildren().forEach(enemy => {
@@ -635,10 +661,11 @@ class MainScene extends Phaser.Scene {
             }
         });
 
-        this.add.text(this.cameras.main.midPoint.x, this.cameras.main.midPoint.y, 'GAME OVER', { fontSize: '64px', fill: '#FF0000' })
-            .setScrollFactor(0)
-            .setOrigin(0.5)
-            .setDepth(100);
+        // We no longer show the Phaser-based "GAME OVER" text
+        // this.add.text(this.cameras.main.midPoint.x, this.cameras.main.midPoint.y, 'GAME OVER', { fontSize: '64px', fill: '#FF0000' })
+        //     .setScrollFactor(0)
+        //     .setOrigin(0.5)
+        //     .setDepth(100);
     }
     
     setInvulnerable(player, duration = 1000) {
@@ -753,11 +780,12 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
     useEffect(() => {
         const config = {
             type: Phaser.AUTO,
-            width: 800, 
-            height: 600,
+            // --- FULLSCREEN CHANGE: Use window size ---
+            width: window.innerWidth,
+            height: window.innerHeight,
             scale: {
-                mode: Phaser.Scale.COVER, 
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                // --- FULLSCREEN CHANGE: Resize to fill parent ---
+                mode: Phaser.Scale.RESIZE,
                 parent: 'game-container',
             },
             pixelArt: true,

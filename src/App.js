@@ -3,21 +3,25 @@ import './App.css';
 import BulletHellGame from './BulletHellGame'; 
 
 function App() {
-  const [showOrientationWarning, setShowOrientationWarning] = useState(
-    window.innerHeight > window.innerWidth
-  );
+  // State for pausing the game
   const [isPaused, setIsPaused] = useState(false);
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  
-  const [showUpgradeScreen, setShowUpgradeScreen] = useState(false);
-  
-  // This ref will now hold an object like { game: ... }
-  const gameInstanceRef = useRef(null); 
+  // --- NEW: State for the pause menu visibility ---
+  const [showPauseMenu, setShowPauseMenu] = useState(false);
 
-  // This function is stable and will not cause re-renders
+  // --- Check for touch device to show/hide joystick help text (in future) ---
+  // const [isTouchDevice] = useState(
+  //   () => ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+  // );
+
+  // --- NEW: Toggle for Pause Menu ---
   const togglePause = useCallback(() => {
-    setIsPaused(p => !p); 
-  }, []); 
+    // When we toggle, we update both the game's pause state AND the menu's visibility
+    setIsPaused(p => {
+      const newPauseState = !p;
+      setShowPauseMenu(newPauseState); // Show menu when paused, hide when unpaused
+      return newPauseState;
+    });
+  }, []); // The empty array [] means it's created only once.
 
   const [gameState, setGameState] = useState({
     score: 0,
@@ -58,143 +62,75 @@ function App() {
     });
   }, []);
 
-  // This function is stable
-  const handleShowUpgrade = useCallback(() => {
-    console.log("[App.js] handleShowUpgrade: Pausing game and showing upgrade screen.");
-    setShowUpgradeScreen(true);
-    setIsPaused(true); // Pause the game
-  }, []);
-
-  // --- THIS IS THE FIX ---
-  // This function now uses the new .game property
-  const handleUpgradeChoice = useCallback((type) => {
-    console.log(`[App.js] handleUpgradeChoice: Chose '${type}'`);
-
-    // --- REF BUG FIX: Access .game property ---
-    if (gameInstanceRef.current && gameInstanceRef.current.game) { 
-        console.log("[App.js] gameInstanceRef is VALID. Calling getScene...");
-        
-        // --- NEW WAY TO CALL ---
-        const scene = gameInstanceRef.current.game.scene.getScene('MainScene'); 
-        
-      if (scene && scene.applyUpgrade) {
-        console.log("[App.js] Scene found! Calling applyUpgrade...");
-        scene.applyUpgrade(type);
-      } else {
-        console.error("[App.js] Error: Scene or applyUpgrade function not found!");
-      }
-    } else {
-        console.error("[App.js] Error: gameInstanceRef.current or .game is null! Cannot call applyUpgrade.");
-    }
-    
-    setShowUpgradeScreen(false);
-    setIsPaused(false); // Unpause the game
-  }, []); // This is also stable
+  // --- NEW: Handle restart from pause menu ---
+  const handleRestart = () => {
+    window.location.reload();
+  };
 
   return (
     <div className="App">
-      
-      <div id="game-container">
-        {!showOrientationWarning && isGameStarted && (
-          <BulletHellGame 
-            ref={gameInstanceRef} // This ref connects to the component
-            onUpdate={handleGameUpdate} 
-            isPaused={isPaused}
-            onTogglePause={togglePause} // This prop is stable
-            onShowUpgrade={handleShowUpgrade} // This prop is stable
-          />
-        )}
-      </div>
+      {/* This is the new UI layer. It sits on top of the game canvas.
+        It's defined in your new App.css.
+      */}
+      <div className="game-ui-overlay">
 
-      {/* Orientation Warning Overlay */}
-      {showOrientationWarning && (
-        <div className="orientation-overlay">
-          <div className="orientation-message">
-            <h2>Rotate Your Device</h2>
-            <p>For the best experience, please rotate your device to landscape mode.</p>
-            <button 
-              className="restart-button" 
-              onClick={() => setShowOrientationWarning(false)}
-            >
-              I Understand
-            </button>
+        {/* --- STATS: Now correctly placed inside the overlay --- */}
+        <div className="game-stats">
+          <div>SCORE: {gameState.score}</div>
+          <div className={gameState.health <= 2 ? 'game-stats-health-low' : ''}>
+            HEALTH: {gameState.health} / 10
           </div>
-        </div>
-      )}
-
-      {/* Start Menu Overlay */}
-      {!showOrientationWarning && !isGameStarted && (
-        <div className="start-menu-overlay">
-          <h1>Bullet Hell Survival</h1>
-          <p><strong>Touch</strong> or <strong>WASD/Arrows</strong> to move. Avoid the enemy ships!</p>
-          <button 
-            className="restart-button"
-            onClick={() => setIsGameStarted(true)} 
-          >
-            Start Game
+          {/* --- PAUSE ICON BUTTON --- */}
+          <button className="pause-button" onClick={togglePause}>
+            <div className="pause-icon" />
           </button>
         </div>
-      )}
 
-      {/* In-Game UI */}
-      {!showOrientationWarning && isGameStarted && (
-        <div className="game-ui-overlay">
-          
-          <div className="game-stats">
-            <div>LEVEL: {gameState.level}</div>
-            <div>SCORE: {gameState.score}</div>
-            <div className={gameState.health <= (gameState.maxHealth * 0.2) ? 'game-stats-health-low' : ''}>
-              HEALTH: {gameState.health} / {gameState.maxHealth}
-            </div>
-            <button 
-              className="pause-button" 
-              onClick={() => {
-                if (!showUpgradeScreen) togglePause();
-              }}
-            >
-              {isPaused ? (showUpgradeScreen ? 'UPGRADING' : 'Resume') : 'Pause'}
+        {/* --- NEW: Pause Menu Overlay --- */}
+        {showPauseMenu && (
+          <div className="pause-menu-overlay">
+            <h2>PAUSED</h2>
+            <button className="restart-button" onClick={togglePause}>
+              Continue
             </button>
-          </div>
-
-          <div className="player-stats">
-            <div>Damage: {gameState.damage.toFixed(1)}</div>
-            <div>
-              Atk Speed: {gameState.attacksPerSecond.toFixed(2)}/s
-            </div>
-            <div>Max HP: {gameState.maxHealth}</div>
-          </div>
-          
-          <div className="controls-text">
             <button 
               className="restart-button"
-              onClick={() => window.location.reload()}
+              onClick={handleRestart}
             >
               Restart Game
             </button>
           </div>
+        )}
 
-          {/* Game Over Overlay */}
-          {gameState.isGameOver && (
-            <div className="game-over-overlay">
-              <h2>GAME OVER</h2>
-            </div>
-          )}
+        {/* --- Game Over Overlay controlled by React --- */}
+        {gameState.isGameOver && (
+          <div className="game-over-overlay">
+            <h2>GAME OVER</h2>
+            <button 
+              className="restart-button"
+              onClick={handleRestart}
+            >
+              Restart Game
+            </button>
+          </div>
+        )}
 
-          {/* Upgrade Screen Overlay */}
-          {showUpgradeScreen && (
-            <div className="upgrade-overlay">
-              <h2>LEVEL UP!</h2>
-              <p>Choose an upgrade:</p>
-              <div className="upgrade-choices">
-                <button className="restart-button" onClick={() => handleUpgradeChoice('damage')}>More Damage (+0.5)</button>
-                <button className="restart-button" onClick={() => handleUpgradeChoice('speed')}>Faster Attack (+0.2)</button>
-                <button className="restart-button" onClick={() => handleUpgradeChoice('health')}>More Health (+1)</button>
-              </div>
-            </div>
-          )}
+      </div> {/* End of game-ui-overlay */}
+      
 
-        </div>
-      )}
+      {/* The Game Canvas Container. 
+        It's now fullscreen as defined in your App.css 
+      */}
+      <div id="game-container">
+        <BulletHellGame 
+          onUpdate={handleGameUpdate} 
+          isPaused={isPaused}
+          onTogglePause={togglePause} // <-- Pass stable function
+        />
+      </div>
+
+      {/* --- REMOVED: Old controls-text and restart button --- */}
+
     </div>
   );
 }
