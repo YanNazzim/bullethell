@@ -1,55 +1,88 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react'; // --- NEW: Added useRef
 import './App.css';
-import BulletHellGame from './BulletHellGame'; // Import the game component
+import BulletHellGame from './BulletHellGame'; 
 
 function App() {
   // State for pausing the game
   const [isPaused, setIsPaused] = useState(false);
   // --- NEW: State for the pause menu visibility ---
   const [showPauseMenu, setShowPauseMenu] = useState(false);
+  // --- NEW: State for the upgrade menu ---
+  const [showUpgradeMenu, setShowUpgradeMenu] = useState(false);
+  
+  // --- NEW: Ref to call functions on the Phaser instance ---
+  const gameInstanceRef = useRef(null);
 
-  // --- Check for touch device to show/hide joystick help text (in future) ---
-  // const [isTouchDevice] = useState(
-  //   () => ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
-  // );
-
-  // --- NEW: Toggle for Pause Menu ---
   const togglePause = useCallback(() => {
-    // When we toggle, we update both the game's pause state AND the menu's visibility
+    // Cannot pause if the upgrade menu is open
+    if (showUpgradeMenu) return; 
+
     setIsPaused(p => {
       const newPauseState = !p;
-      setShowPauseMenu(newPauseState); // Show menu when paused, hide when unpaused
+      setShowPauseMenu(newPauseState); 
       return newPauseState;
     });
-  }, []); // The empty array [] means it's created only once.
+  }, [showUpgradeMenu]); // Re-run if upgrade menu state changes
 
-  // Game State to be displayed in the React UI
   const [gameState, setGameState] = useState({
     score: 0,
     health: 10,
+    maxHealth: 10,
     isGameOver: false,
+    level: 1,
+    damage: 2, // Default damage
+    attacksPerSecond: 2 // Default attacks per second
   });
 
-  // Handler to receive updates from the Phaser game
+  // This function is stable
   const handleGameUpdate = useCallback((data) => {
     setGameState(prevState => {
-      let newState = { ...prevState };
       switch (data.type) {
         case 'score':
-          newState.score = data.value;
-          break;
+          return { ...prevState, score: data.value };
         case 'health':
-          newState.health = data.value;
-          break;
+          // NEW: Now correctly receives 'max' from Phaser
+          return { ...prevState, health: data.value, max: data.max };
         case 'gameOver':
-          newState.isGameOver = data.value;
-          break;
+          return { ...prevState, isGameOver: data.value };
+        case 'fullStats':
+          // This updates ALL stats at once from Phaser
+          return {
+            ...prevState,
+            level: data.level,
+            health: data.health,
+            maxHealth: data.maxHealth,
+            damage: data.damage,
+            attacksPerSecond: parseFloat(data.attacksPerSecond.toFixed(1)) // Format to 1 decimal
+          };
         default:
-          break;
+          return prevState;
       }
-      return newState;
     });
   }, []);
+
+  // --- NEW: This is called by Phaser when it's time to level up ---
+  const handleShowUpgrade = useCallback(() => {
+    console.log("[App.js] handleShowUpgrade: Received signal from Phaser.");
+    setIsPaused(true); // Pause the game
+    setShowUpgradeMenu(true); // Show the upgrade menu
+  }, []);
+
+  // --- NEW: This is called when the user clicks an upgrade button ---
+  const handleUpgradeChoice = (upgradeType) => {
+    console.log(`[App.js] handleUpgradeChoice: Chose '${upgradeType}'`);
+    if (gameInstanceRef.current && gameInstanceRef.current.game) {
+      // Find the running scene and call its 'applyUpgrade' function
+      const scene = gameInstanceRef.current.game.scene.getScene('MainScene');
+      if (scene) {
+        scene.applyUpgrade(upgradeType);
+      }
+    }
+    
+    // Close menu and unpause game
+    setShowUpgradeMenu(false);
+    setIsPaused(false);
+  };
 
   // --- NEW: Handle restart from pause menu ---
   const handleRestart = () => {
@@ -58,21 +91,26 @@ function App() {
 
   return (
     <div className="App">
-      {/* This is the new UI layer. It sits on top of the game canvas.
-        It's defined in your new App.css.
-      */}
       <div className="game-ui-overlay">
 
         {/* --- STATS: Now correctly placed inside the overlay --- */}
         <div className="game-stats">
           <div>SCORE: {gameState.score}</div>
-          <div className={gameState.health <= 2 ? 'game-stats-health-low' : ''}>
-            HEALTH: {gameState.health} / 10
+          {/* --- FIX: Uses gameState.maxHealth --- */}
+          <div className={gameState.health <= (gameState.maxHealth * 0.2) ? 'game-stats-health-low' : ''}>
+            HEALTH: {gameState.health} / {gameState.maxHealth}
           </div>
           {/* --- PAUSE ICON BUTTON --- */}
           <button className="pause-button" onClick={togglePause}>
             <div className="pause-icon" />
           </button>
+        </div>
+
+        {/* --- NEW: Player Stats Panel (Restored) --- */}
+        <div className="player-stats">
+          <div>Level: {gameState.level}</div>
+          <div>Damage: {gameState.damage}</div>
+          <div>Atk Spd: {gameState.attacksPerSecond}/s</div>
         </div>
 
         {/* --- NEW: Pause Menu Overlay --- */}
@@ -88,6 +126,34 @@ function App() {
             >
               Restart Game
             </button>
+          </div>
+        )}
+
+        {/* --- NEW: Upgrade Overlay (Restored) --- */}
+        {showUpgradeMenu && (
+          <div className="upgrade-overlay">
+            <h2>LEVEL UP!</h2>
+            <p>Choose an Upgrade:</p>
+            <div className="upgrade-choices">
+              <button 
+                className="restart-button"
+                onClick={() => handleUpgradeChoice('damage')}
+              >
+                Damage +0.5
+              </button>
+              <button 
+                className="restart-button"
+                onClick={() => handleUpgradeChoice('speed')}
+              >
+                Atk Speed +0.2
+              </button>
+              <button 
+                className="restart-button"
+                onClick={() => handleUpgradeChoice('health')}
+              >
+                Max Health +1
+              </button>
+            </div>
           </div>
         )}
 
@@ -107,19 +173,16 @@ function App() {
       </div> {/* End of game-ui-overlay */}
       
 
-      {/* The Game Canvas Container. 
-        It's now fullscreen as defined in your App.css 
-      */}
       <div id="game-container">
         <BulletHellGame 
+          // --- NEW: Pass the ref and new callback ---
+          ref={gameInstanceRef}
           onUpdate={handleGameUpdate} 
           isPaused={isPaused}
-          onTogglePause={togglePause} // <-- Pass stable function
+          onTogglePause={togglePause}
+          onShowUpgrade={handleShowUpgrade} // <-- This was missing
         />
       </div>
-
-      {/* --- REMOVED: Old controls-text and restart button --- */}
-
     </div>
   );
 }

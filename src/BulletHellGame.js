@@ -1,19 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useImperativeHandle } from 'react';
 import Phaser from 'phaser';
-// --- NEW: Import the joystick plugin ---
+// --- NEW: Re-added the joystick plugin import ---
 import VirtualJoystickPlugin from 'phaser3-rex-plugins/plugins/virtualjoystick-plugin.js';
 
+
 // --- CONFIGURATION CONSTANTS ---
-const PLAYER_SPEED = 200;
+const PLAYER_SPEED = 150;
 const PLAYER_HEALTH = 10;
-const AUTO_FIRE_RATE_MS = 250; 
+const AUTO_FIRE_RATE_MS = 500; // 500ms = 2 attacks per second
 
-const BULLET_SPEED = 400;
+const BULLET_SPEED = 450;
 
-const ENEMY_SPAWN_RATE_MS = 3000;
-const ENEMY_CHASE_SPEED = 50;
-
+const ENEMY_SPAWN_RATE_MS = 2500;
+const ENEMY_CHASE_SPEED = 60;
+const ENEMY_BASE_HEALTH = 3; 
 const ENEMY_DAMAGE_BODY = 1;
+
+// --- NEW: Elite Enemy Stats ---
+const ELITE_ENEMY_HEALTH = 25;
+const ELITE_ENEMY_SPEED = 30;
+const ELITE_ENEMY_DAMAGE = 3;
+
 
 // --- PHASER SCENES ---
 
@@ -38,31 +45,19 @@ class Projectile extends Phaser.Physics.Arcade.Image {
             this.despawnTimer.remove(false);
         }
         
-        // Force the correct texture
         this.setTexture('bullet');
-
         this.body.enable = true;
-        this.body.reset(x, y); // Reset position and clear velocity
+        this.body.reset(x, y); 
         
-        
-        // Set rotation (assumes 'laser.png' points "right")
         this.setRotation(angle); 
-
-        // Set scale to 0.03
         this.setActive(true).setVisible(true).setScale(0.03); 
         
         
-        
-        // --- HITBOX FIX ---
-        // The visual scale (0.03) is tiny, making the default hitbox sub-pixel.
-        // We override it with a 12px diameter (6px radius) circular hitbox
-        // to make collision detection fair and reliable.
+        // --- HITBOX FIX (Projectile) ---
+        // We give the bullet a 12px diameter (6px radius) circle.
+        // By *not* setting an offset, Phaser will automatically
+        // center this 12px circle on the sprite's origin (x, y).
         this.body.setCircle(6); 
-        // The 'laser.png' sprite is 48x8 pixels.
-        // We offset the circle to center it on the sprite's original dimensions.
-        // OffsetX = (OriginalWidth / 2) - radius = (48 / 2) - 6 = 18
-        // OffsetY = (OriginalHeight / 2) - radius = (8 / 2) - 6 = -2
-        this.body.setOffset(18, -2);
         // --- END HITBOX FIX ---
 
 
@@ -92,6 +87,118 @@ class Projectile extends Phaser.Physics.Arcade.Image {
     }
 }
 
+// --- NEW: Custom Enemy Class with Health Bar ---
+class Enemy extends Phaser.Physics.Arcade.Image {
+    constructor(scene, x, y, texture) {
+        super(scene, x, y, texture);
+        
+        this.healthBar = scene.add.graphics();
+        this.healthBar.setDepth(10); 
+    }
+
+    // This is called when we get an enemy from the group
+    spawn(x, y, key, scale, health, speed, damage, isElite) {
+        this.scene.add.existing(this);
+        this.scene.physics.add.existing(this);
+        
+        this.setTexture(key);
+        this.body.reset(x, y);
+        this.body.enable = true;
+        
+        this.setActive(true).setVisible(true).setScale(scale).setRotation(0);
+        
+        this.setData('health', health);
+        this.setData('maxHealth', health); // Use the scaled health
+        this.setData('speed', speed); // Use the scaled speed
+        this.setData('damage', damage);
+        this.setData('isElite', isElite);
+        
+        if (isElite) {
+            this.setTint(0xff0000);
+            
+            // --- UPDATED HITBOX FIX (ELITE: 99x75 sprite) ---
+            // Increased to 60px diameter circle (radius 30) for a larger elite collision area.
+            this.body.setCircle(30); 
+            // Offset to center: 
+            // X: (99 - 60) / 2 = 19.5
+            // Y: New manual offset for visual centering = 0
+            this.body.setOffset(19.5, 0);
+            
+        } else {
+            
+            // --- HITBOX FIX (REGULAR: 32x32 sprite) ---
+            // 24px diameter circle (radius 12).
+            this.body.setCircle(12);
+            // Offset to center: (32 - 24) / 2 = 4
+            this.body.setOffset(4, 4);
+        }
+        // --- END HITBOX FIX ---
+        
+        this.drawHealthBar();
+    }
+    
+    // This is called by the physics overlap
+    takeDamage(amount) {
+        if (!this.active) return false;
+        
+        const newHealth = this.getData('health') - amount;
+        this.setData('health', newHealth);
+        
+        if (newHealth <= 0) {
+            this.kill();
+            return true; // Is dead
+        }
+        
+        // Flash white (or red-white for elites)
+        this.setTint(0xffffff);
+        this.scene.time.delayedCall(50, () => {
+            if (this.active) {
+                if (this.getData('isElite')) {
+                    this.setTint(0xff0000); // Back to red
+                } else {
+                    this.clearTint(); // Back to normal
+                }
+            }
+        });
+        
+        return false; // Is not dead
+    }
+
+    drawHealthBar() {
+        this.healthBar.clear();
+        
+        if (!this.active) return;
+        
+        const p = this.getData('health') / this.getData('maxHealth');
+        
+        const w = (this.width * this.scaleX);
+        const h = 5; 
+        const x = this.x - w / 2;
+        const y = this.y - (this.height * this.scaleY) / 2 - (h * 2); 
+        
+        this.healthBar.fillStyle(0x333333);
+        this.healthBar.fillRect(x, y, w, h);
+        
+        this.healthBar.fillStyle(p < 0.3 ? 0xff0000 : 0x00ff00); 
+        this.healthBar.fillRect(x, y, w * p, h);
+    }
+
+    // This is called every frame
+    preUpdate(time, delta) {
+        // super.preUpdate(time, delta); // This was the bug
+        
+        if (this.active) {
+            this.drawHealthBar();
+        }
+    }
+    
+    kill() {
+        this.healthBar.clear(); 
+        this.disableBody(true, true); 
+    }
+}
+// --- END: Custom Enemy Class ---
+
 
 class MainScene extends Phaser.Scene {
     constructor() {
@@ -100,8 +207,8 @@ class MainScene extends Phaser.Scene {
         this.bullets = null; 
         this.enemies = null;
         this.score = 0;
-        this.playerHealth = PLAYER_HEALTH;
         this.isGameOver = false;
+        
         this.onUpdate = () => {}; 
         this.pauseText = null; 
         this.autoFireEvent = null; 
@@ -111,37 +218,59 @@ class MainScene extends Phaser.Scene {
         
         this.onTogglePause = () => {};
         
-        // --- NEW: Joystick properties ---
+        // --- JOYSTICK: Added properties back ---
         this.joystick = null;
         this.joyStickCursorKeys = null;
-        
-        // --- FIX: This 'joystickPlugin' will be mapped from the config ---
         this.joystickPlugin = null; 
+        
+        this.onShowUpgrade = () => {}; 
+        this.playerHealth = PLAYER_HEALTH;
+        this.playerMaxHealth = PLAYER_HEALTH;
+        this.playerDamage = 1;
+        this.playerLevel = 1;
+        
+        this.playerAttacksPerSecond = 1000 / AUTO_FIRE_RATE_MS; 
+        this.playerAttackSpeedDelay = AUTO_FIRE_RATE_MS;
+        
+        this.orbsForNextLevel = 5;
+        this.nextUpgradeScore = 5;
     }
     
     init(data) {
         this.onUpdate = data.onUpdate;
         this.onTogglePause = data.onTogglePause;
+        this.onShowUpgrade = data.onShowUpgrade;
     }
 
     // 1. PRELOAD: Load all game assets
     preload() {
-        this.load.image('player', 'https://labs.phaser.io/assets/sprites/ship.png');
+        this.load.image('player', 'assets/player.png');
         this.load.image('blue_particle', 'https://labs.phaser.io/assets/particles/blue.png');
         this.load.image('exp_orb', 'https://labs.phaser.io/assets/sprites/star.png');
         this.load.image('space_bg', 'https://labs.phaser.io/assets/skies/space3.png');
         this.load.image('enemy', 'https://labs.phaser.io/assets/sprites/space-baddie.png');
-        
-        // This path works because 'assets/laser.png' is inside the 'public' folder.
         this.load.image('bullet', 'assets/laser.png');
+        
+        this.load.image('elite_enemy', 'https://labs.phaser.io/assets/sprites/ship.png'); 
     }
 
     // 2. CREATE: Setup the game world
     create() {
         this.score = 0;
+        this.playerLevel = 1;
         this.playerHealth = PLAYER_HEALTH;
+        this.playerMaxHealth = PLAYER_HEALTH;
+        this.playerDamage = 1; 
+        
+        this.playerAttacksPerSecond = 1000 / AUTO_FIRE_RATE_MS;
+        this.playerAttackSpeedDelay = AUTO_FIRE_RATE_MS;
+        
+        this.orbsForNextLevel = 5;
+        this.nextUpgradeScore = 5;
+        
+        this.sendFullStats();
+        
         this.onUpdate({ type: 'score', value: this.score });
-        this.onUpdate({ type: 'health', value: this.playerHealth });
         this.isGameOver = false;
 
         this.physics.world.setBounds(0, 0, 1600, 1200);
@@ -152,7 +281,15 @@ class MainScene extends Phaser.Scene {
 
         this.player = this.physics.add.image(800, 600, 'player')
             .setCollideWorldBounds(true)
-            .setScale(0.5);
+            .setScale(.2);
+        
+        // --- UPDATED HITBOX FIX (PLAYER: 99x75 sprite) ---
+        // Increased to 50px diameter circle (radius 25) for a larger player collision area.
+        this.player.body.setCircle(500);
+
+        this.player.flashTween = null;
+        this.player.invulnTimer = null;
+
 
         this.cameras.main.setBounds(0, 0, 1600, 1200);
         this.cameras.main.startFollow(this.player, true, 0.05, 0.05);
@@ -168,23 +305,20 @@ class MainScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-P', this.onTogglePause, this);
         this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
         
-        // --- JOYSTICK CHANGE: Smaller and Bottom-Center ---
-        // This logic is now dynamic and will work with the new fullscreen size
+        // --- JOYSTICK: Re-added creation logic ---
         if (this.sys.game.device.input.touch) {
-            // Position joystick in bottom-center of the *camera*
             const joyStickX = this.cameras.main.width / 2;
             const joyStickY = this.cameras.main.height * 0.85; // 85% down
 
-            // --- Use the mapped plugin 'this.joystickPlugin' from the scene ---
             this.joystick = this.joystickPlugin.add(this, {
                 x: joyStickX,
                 y: joyStickY,
-                radius: 60, // Smaller base
-                base: this.add.circle(0, 0, 60, 0x888888, 0.3), // Faded base
-                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), // Smaller thumb
-                dir: '8dir', // 8 directions
+                radius: 60, 
+                base: this.add.circle(0, 0, 60, 0x888888, 0.3), 
+                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), 
+                dir: '8dir', 
                 forceMin: 16,
-            }).setScrollFactor(0); // Stick to camera
+            }).setScrollFactor(0); 
 
             this.joyStickCursorKeys = this.joystick.createCursorKeys();
         }
@@ -196,19 +330,17 @@ class MainScene extends Phaser.Scene {
             classType: Projectile, 
             maxSize: 30,
             runChildUpdate: true, 
-            key: 'bullet', // This now uses your local 'laser.png'
+            key: 'bullet', 
             createCallback: (gameObject) => {
                 gameObject.body.setAllowGravity(false);
             }
         });
         
-        // 2. Enemies Group
         this.enemies = this.physics.add.group({
-            defaultKey: 'enemy',
-            runChildUpdate: true
+            classType: Enemy, 
+            runChildUpdate: true 
         });
 
-        // 3. Player Thruster Emitter
         this.thrusterEmitter = this.add.particles(0, 0, 'blue_particle', {
             speed: 50,
             angle: { min: -25, max: 25 }, 
@@ -219,8 +351,6 @@ class MainScene extends Phaser.Scene {
             active: false
         });
         
-        // This text is now hidden (we use the React pause menu)
-        // But it's good to keep for debugging
         this.pauseText = this.add.text(
             this.cameras.main.width / 2, 
             this.cameras.main.height / 2, 
@@ -238,9 +368,8 @@ class MainScene extends Phaser.Scene {
         this.expOrbs = this.physics.add.group();
         this.physics.add.overlap(this.player, this.expOrbs, this.collectOrb, null, this);
 
-
         this.autoFireEvent = this.time.addEvent({
-            delay: AUTO_FIRE_RATE_MS,
+            delay: this.playerAttackSpeedDelay,
             callback: this.fireBullet,
             callbackScope: this,
             loop: true
@@ -255,23 +384,33 @@ class MainScene extends Phaser.Scene {
 
         console.log("Phaser Game Created and Initialized. Auto-fire enabled.");
     }
+    
+    sendFullStats() {
+        this.onUpdate({
+            type: 'fullStats',
+            level: this.playerLevel,
+            health: this.playerHealth,
+            maxHealth: this.playerMaxHealth,
+            damage: this.playerDamage,
+            attacksPerSecond: this.playerAttacksPerSecond 
+        });
+    }
 
     // 3. UPDATE: The main game loop
     update(time) {
         if (this.isGameOver) return;
 
-        // Movement is handled first
         this.handlePlayerMovement();
 
         if (!this.physics.world.isPaused) {
             this.enemies.getChildren().forEach(enemy => {
-                this.trackPlayer(enemy);
+                if (enemy.active) {
+                    this.trackPlayer(enemy);
+                }
             });
             
-            // Make all active orbs track the player
-            this.expOrbs.getChildren().forEach(orb => {
+            this.expOrbs.getChildren().forEach( orb => {
                 if (orb.active) {
-                    // This recalculates the path to the player every frame
                     this.physics.moveToObject(orb, this.player, 350);
                 }
             });
@@ -303,30 +442,60 @@ class MainScene extends Phaser.Scene {
         }
     }
     
-    // --- This function is called by the React wrapper ---
     handlePause(shouldPause) {
-        // Check if state is already correct
         if (this.isGameOver || this.physics.world.isPaused === shouldPause) {
             return; 
         }
         
         this.physics.world.isPaused = shouldPause;
-        // We no longer show the Phaser-based "PAUSED" text
-        // this.pauseText.setVisible(shouldPause); 
         this.autoFireEvent.paused = shouldPause;
 
-        console.log(`Game Paused: ${shouldPause}`);
+        this.enemies.getChildren().forEach(enemy => {
+            if (enemy.healthBar) {
+                enemy.healthBar.setVisible(!shouldPause);
+            }
+        });
+
+        console.log(`[Phaser] handlePause: Game Paused = ${shouldPause}`);
     }
 
-    // --- HEAVILY MODIFIED: handlePlayerMovement ---
+    applyUpgrade(type) {
+        console.log(`[Phaser] applyUpgrade: Received upgrade type '${type}'`);
+        console.log("[Phaser] Stats BEFORE:", { dmg: this.playerDamage, spd: this.playerAttacksPerSecond, hp: this.playerMaxHealth });
+
+        switch (type) {
+            case 'damage':
+                this.playerDamage += 0.5; 
+                break;
+            case 'speed':
+                this.playerAttacksPerSecond += 0.2; 
+                this.playerAttackSpeedDelay = 1000 / this.playerAttacksPerSecond;
+                this.autoFireEvent.delay = this.playerAttackSpeedDelay;
+                break;
+            case 'health':
+                this.playerMaxHealth += 1; 
+                this.playerHealth = this.playerMaxHealth; // Full heal
+                break;
+            default:
+                break;
+        }
+
+        console.log("[Phaser] Stats AFTER:", { dmg: this.playerDamage, spd: this.playerAttacksPerSecond, hp: this.playerMaxHealth });
+
+
+        this.removeInvulnerability(this.player);
+        
+        console.log("[Phaser] Player invulnerability removed. Sending full stats to React...");
+        this.sendFullStats(); // Send all updated stats
+    }
+
+    // --- FIX: Re-added full movement logic ---
     handlePlayerMovement() {
-        // Start with no velocity
         this.player.setVelocity(0);
         let velX = 0;
         let velY = 0;
 
         // --- 1. Joystick Controls (Mobile) ---
-        // Priority 1: Use joystick if it exists and is being used
         if (this.joystick && this.joystick.force > 0) {
             if (this.joyStickCursorKeys.left.isDown) {
                 velX = -PLAYER_SPEED;
@@ -341,19 +510,16 @@ class MainScene extends Phaser.Scene {
             }
         }
         // --- 2. Mouse Controls (PC) ---
-        // Priority 2: Use mouse-drag, but *only* on non-touch devices
         else if (this.input.activePointer.isDown && !this.sys.game.device.input.touch) {
             const touchX = this.input.activePointer.worldX;
             const touchY = this.input.activePointer.worldY;
 
-            // Calculate direction
             const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, touchX, touchY);
             velX = Math.cos(angle) * PLAYER_SPEED;
             velY = Math.sin(angle) * PLAYER_SPEED;
             
         } 
         // --- 3. Keyboard Controls (PC) ---
-        // Priority 3: Fallback to keyboard
         else { 
             if (this.cursors.left.isDown || this.wasd.left.isDown) {
                 velX = -PLAYER_SPEED;
@@ -372,7 +538,6 @@ class MainScene extends Phaser.Scene {
         this.player.setVelocity(velX, velY);
         
         // Normalize diagonal speed (for joystick and keyboard)
-        // We exclude the mouse-drag since it's already a direct vector
         if (velX !== 0 && velY !== 0 && !(this.input.activePointer.isDown && !this.sys.game.device.input.touch)) {
             this.player.body.velocity.normalize().scale(PLAYER_SPEED);
         }
@@ -386,26 +551,22 @@ class MainScene extends Phaser.Scene {
 
     fireBullet() {
         if (this.physics.world.isPaused || this.isGameOver) return;
-
         const targetEnemy = this.findNearestEnemy();
-            
         if (!targetEnemy) {
             return;
         }
-        
         const bullet = this.bullets.get(0, 0); 
-
         if (bullet) {
             const angle = Phaser.Math.Angle.Between(
                 this.player.x, this.player.y,
                 targetEnemy.x, targetEnemy.y
             );
-            
             bullet.fire(this.player.x, this.player.y, angle);
         }
     }
 
     findNearestEnemy() {
+        const cam = this.cameras.main; 
         const activeEnemies = this.enemies.getChildren().filter(e => e.active);
         if (activeEnemies.length === 0) return null;
 
@@ -413,27 +574,79 @@ class MainScene extends Phaser.Scene {
         let minDistance = Infinity;
 
         activeEnemies.forEach(enemy => {
-            const distance = Phaser.Math.Distance.Between(
-                this.player.x, this.player.y,
-                enemy.x, enemy.y
-            );
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearestEnemy = enemy;
+            if (cam.worldView.contains(enemy.x, enemy.y)) {
+                const distance = Phaser.Math.Distance.Between(
+                    this.player.x, this.player.y,
+                    enemy.x, enemy.y
+                );
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestEnemy = enemy;
+                }
             }
         });
 
         return nearestEnemy;
     }
 
+
     trackPlayer(enemy) {
         const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
         enemy.setRotation(angle + Math.PI / 2); 
-
-        this.physics.moveToObject(enemy, this.player, ENEMY_CHASE_SPEED);
+        const speed = enemy.getData('speed');
+        this.physics.moveToObject(enemy, this.player, speed);
     }
     
-    // Wave Management
+    spawnRegularEnemy(x, y) {
+        const enemy = this.enemies.get();
+        if (enemy) {
+            
+            let health = ENEMY_BASE_HEALTH;
+            let speed = ENEMY_CHASE_SPEED;
+            
+            if (this.playerLevel >= 25) {
+                const levelBonus = this.playerLevel - 25;
+                health += Math.floor(levelBonus / 2); 
+                speed += levelBonus * 0.5; 
+            }
+            
+            enemy.spawn(
+                x, y,
+                'enemy',
+                1.5,
+                health,
+                speed,
+                ENEMY_DAMAGE_BODY,
+                false
+            );
+        }
+    }
+    
+    spawnElite(x, y) {
+        const elite = this.enemies.get();
+        if (elite) {
+            
+            let health = ELITE_ENEMY_HEALTH;
+            let speed = ELITE_ENEMY_SPEED;
+            
+            if (this.playerLevel >= 25) {
+                const levelBonus = this.playerLevel - 25;
+                health += levelBonus * 2; 
+                speed += levelBonus * 0.25; 
+            }
+            
+            elite.spawn(
+                x, y,
+                'elite_enemy',
+                0.75, 
+                health,
+                speed,
+                ELITE_ENEMY_DAMAGE,
+                true
+            );
+        }
+    }
+
     spawnWave() {
         if (this.isGameOver) return;
         
@@ -443,19 +656,20 @@ class MainScene extends Phaser.Scene {
         const playerY = this.player.y;
         const spawnDistance = 500;
         
-        for (let i = 0; i < 5; i++) {
+        const waveSize = (this.playerLevel >= 25) ? 7 : 5;
+        
+        for (let i = 0; i < waveSize; i++) {
             let x, y;
-
             do {
                 x = Phaser.Math.Between(0, mapWidth);
                 y = Phaser.Math.Between(0, mapHeight);
             } while (Phaser.Math.Distance.Between(x, y, playerX, playerY) < spawnDistance);
 
-            const enemy = this.enemies.get(x, y);
-            if (enemy) {
-                // Set enemy scale to 1.5
-                enemy.setActive(true).setVisible(true).setScale(1.5).setRotation(0);
-                enemy.body.enable = true;
+            let eliteChance = 0.2; // 20%
+            if (this.playerLevel > 5 && Math.random() < eliteChance) {
+                this.spawnElite(x, y);
+            } else {
+                this.spawnRegularEnemy(x, y);
             }
         }
     }
@@ -466,7 +680,8 @@ class MainScene extends Phaser.Scene {
         this.playerHealth -= damage;
         this.playerHealth = Math.max(0, this.playerHealth);
         
-        this.onUpdate({ type: 'health', value: this.playerHealth }); 
+        // --- FIX: Send max health ---
+        this.onUpdate({ type: 'health', value: this.playerHealth, max: this.playerMaxHealth }); 
 
         if (this.playerHealth <= 0) {
             this.handleGameOver();
@@ -484,18 +699,22 @@ class MainScene extends Phaser.Scene {
         
         if (this.pauseText) this.pauseText.setVisible(false);
         this.thrusterEmitter.stop(); 
-
-        // We no longer show the Phaser-based "GAME OVER" text
-        // this.add.text(this.cameras.main.midPoint.x, this.cameras.main.midPoint.y, 'GAME OVER', { fontSize: '64px', fill: '#FF0000' })
-        //     .setScrollFactor(0)
-        //     .setOrigin(0.5)
-        //     .setDepth(100);
+        
+        this.enemies.getChildren().forEach(enemy => {
+            if (enemy.healthBar) {
+                enemy.healthBar.clear();
+            }
+        });
     }
     
-    setInvulnerable(player, duration) {
+    setInvulnerable(player, duration = 1000) {
         player.invulnerable = true;
         
-        const flashTween = this.tweens.add({
+        if (player.flashTween) {
+            player.flashTween.stop();
+        }
+
+        player.flashTween = this.tweens.add({
             targets: player,
             alpha: 0.3,
             ease: 'Power1',
@@ -504,82 +723,122 @@ class MainScene extends Phaser.Scene {
             repeat: -1, 
         });
         
-        this.time.delayedCall(duration, () => {
-            flashTween.stop();
-            player.alpha = 1;
-            player.invulnerable = false;
-        });
+        if (player.invulnTimer) {
+            player.invulnTimer.remove();
+        }
+
+        if (duration > 0) { 
+            player.invulnTimer = this.time.delayedCall(duration, () => {
+                this.removeInvulnerability(player);
+            });
+        }
+    }
+
+    removeInvulnerability(player) {
+        if (player.flashTween) {
+            player.flashTween.stop();
+            player.flashTween = null;
+        }
+        if (player.invulnTimer) {
+            player.invulnTimer.remove();
+            player.invulnTimer = null;
+        }
+        player.alpha = 1;
+        player.invulnerable = false;
     }
 
     hitPlayerByEnemy(player, enemy) {
         if (player.active && (player.invulnerable === undefined || !player.invulnerable)) {
-            this.updateHealth(ENEMY_DAMAGE_BODY);
+            const damage = enemy.getData('damage');
+            this.updateHealth(damage);
         }
     }
 
     hitEnemy(bullet, enemy) {
-        // No more red particle explosion
-        
         if (bullet.disableProjectile) {
             bullet.disableProjectile(); 
         } else {
             bullet.disableBody(true, true);
         }
-        enemy.disableBody(true, true);
         
-        const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
-        if (orb) {
-            // Scaled down stars
-            orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
-            orb.body.setCircle(8); 
-            orb.body.enable = true;
-            orb.body.moves = true;
-            
-            // Orb movement is now handled in the main update() loop for tracking
-            
-            // Despawn the orb after 5 seconds
-            this.time.delayedCall(5000, () => {
-                if(orb.active) orb.disableBody(true, true);
-            });
+        if (!enemy.active) return; 
+
+        const isDead = enemy.takeDamage(this.playerDamage);
+
+        if (isDead) {
+            const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
+            if (orb) {
+                orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
+                orb.body.setCircle(8); 
+                orb.body.enable = true;
+                orb.body.moves = true;
+                
+                this.time.delayedCall(5000, () => {
+                    if(orb.active) orb.disableBody(true, true);
+                });
+            }
         }
     }
     
+    enterUpgradeState() {
+        this.playerLevel++;
+        this.orbsForNextLevel++; // This is where the cost for the *next* level increases
+        
+        this.onShowUpgrade(); 
+        this.setInvulnerable(this.player, -1); 
+        
+        console.log(`[Phaser] enterUpgradeState: Player is Level ${this.playerLevel}. Invulnerable. Opening UI.`);
+        console.log(`[Phaser] Next level will require ${this.orbsForNextLevel} orbs.`);
+    }
+
     collectOrb(player, orb) {
         orb.disableBody(true, true); 
         
-        // Score is now 1 point
         this.score += 1;
         this.onUpdate({ type: 'score', value: this.score });
+        
+        if (this.score >= this.nextUpgradeScore) {
+            // --- FIX: This is the correct scaling logic ---
+            // 1. Enter upgrade state, which increments orbsForNextLevel (e.g., to 6)
+            this.enterUpgradeState(); 
+            // 2. Set the *new* score target by adding the *new* amount
+            // (e.g., next target = 5 + 6 = 11)
+            this.nextUpgradeScore += this.orbsForNextLevel; 
+        }
     }
 }
 
 // --- REACT COMPONENT (Wrapper) ---
 
-const BulletHellGame = ({ onUpdate, isPaused, onTogglePause }) => {
+const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, onShowUpgrade }, ref) => {
     const gameRef = useRef(null); 
 
-    // Effect for creating and destroying the game
+    useImperativeHandle(ref, () => ({
+        get game() {
+            return gameRef.current;
+        }
+    }), []); 
+
     useEffect(() => {
         const config = {
             type: Phaser.AUTO,
-            // --- FULLSCREEN CHANGE: Use window size ---
             width: window.innerWidth,
             height: window.innerHeight,
             scale: {
-                // --- FULLSCREEN CHANGE: Resize to fill parent ---
                 mode: Phaser.Scale.RESIZE,
                 parent: 'game-container',
             },
-            parent: 'game-container',
             pixelArt: true,
             physics: {
                 default: 'arcade',
                 arcade: {
                     gravity: { y: 0 },
-                    debug: false 
+                    // --- NEW: ENABLE DEBUG ---
+                    // This will draw green outlines on all hitboxes!
+                    debug: true 
                 }
             },
-            // --- FIX: Change 'global' to 'scene' and add mapping ---
+            // --- FIX: Re-added the plugin config ---
             plugins: {
                 scene: [{
                     key: 'rexVirtualJoystick',
@@ -597,28 +856,28 @@ const BulletHellGame = ({ onUpdate, isPaused, onTogglePause }) => {
         
         game.scene.start('MainScene', { 
             onUpdate: onUpdate || (() => {}),
-            onTogglePause: onTogglePause || (() => {})
+            onTogglePause: onTogglePause || (() => {}),
+            onShowUpgrade: onShowUpgrade || (() => {})
         });
 
         return () => {
             game.destroy(true);
             gameRef.current = null;
         };
-      // --- BUG FIX: Removed 'onTogglePause' from dependency array ---
-      // This stops the game from re-creating itself when you pause/level up
-    }, [onUpdate, onShowUpgrade]); 
+    // --- BUG FIX: Removed 'onTogglePause' from dependency array ---
+    // This stops the game from re-creating itself when you pause/level up
+    }, [onUpdate, onShowUpgrade, onTogglePause]); 
 
-    // Effect for handling the isPaused prop
     useEffect(() => {
         if (gameRef.current && gameRef.current.scene) {
             const scene = gameRef.current.scene.getScene('MainScene');
             if (scene && scene.handlePause) {
-                scene.handlePause(isPaused);
+                scene.handlePause(isPaused); 
             }
         }
     }, [isPaused]); 
 
     return <></>; 
-};
+});
 
 export default BulletHellGame;
