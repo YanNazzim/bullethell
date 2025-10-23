@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useImperativeHandle } from 'react';
 import Phaser from 'phaser';
+// --- NEW: Re-added the joystick plugin import ---
+import VirtualJoystickPlugin from 'phaser3-rex-plugins/plugins/virtualjoystick-plugin.js';
+
 
 // --- CONFIGURATION CONSTANTS ---
 const PLAYER_SPEED = 200;
@@ -189,6 +192,11 @@ class MainScene extends Phaser.Scene {
         
         this.onTogglePause = () => {};
         
+        // --- JOYSTICK: Added properties back ---
+        this.joystick = null;
+        this.joyStickCursorKeys = null;
+        this.joystickPlugin = null; 
+        
         this.onShowUpgrade = () => {}; 
         this.playerHealth = PLAYER_HEALTH;
         this.playerMaxHealth = PLAYER_HEALTH;
@@ -267,23 +275,20 @@ class MainScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-P', this.onTogglePause, this);
         this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
         
-        // --- JOYSTICK CHANGE: Smaller and Bottom-Center ---
-        // This logic is now dynamic and will work with the new fullscreen size
+        // --- JOYSTICK: Re-added creation logic ---
         if (this.sys.game.device.input.touch) {
-            // Position joystick in bottom-center of the *camera*
             const joyStickX = this.cameras.main.width / 2;
             const joyStickY = this.cameras.main.height * 0.85; // 85% down
 
-            // --- Use the mapped plugin 'this.joystickPlugin' from the scene ---
             this.joystick = this.joystickPlugin.add(this, {
                 x: joyStickX,
                 y: joyStickY,
-                radius: 60, // Smaller base
-                base: this.add.circle(0, 0, 60, 0x888888, 0.3), // Faded base
-                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), // Smaller thumb
-                dir: '8dir', // 8 directions
+                radius: 60, 
+                base: this.add.circle(0, 0, 60, 0x888888, 0.3), 
+                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), 
+                dir: '8dir', 
                 forceMin: 16,
-            }).setScrollFactor(0); // Stick to camera
+            }).setScrollFactor(0); 
 
             this.joyStickCursorKeys = this.joystick.createCursorKeys();
         }
@@ -316,8 +321,6 @@ class MainScene extends Phaser.Scene {
             active: false
         });
         
-        // This text is now hidden (we use the React pause menu)
-        // But it's good to keep for debugging
         this.pauseText = this.add.text(
             this.cameras.main.width / 2, 
             this.cameras.main.height / 2, 
@@ -376,7 +379,7 @@ class MainScene extends Phaser.Scene {
                 }
             });
             
-            this.expOrbs.getChildren().forEach(orb => {
+            this.expOrbs.getChildren().forEach( orb => {
                 if (orb.active) {
                     this.physics.moveToObject(orb, this.player, 350);
                 }
@@ -415,8 +418,6 @@ class MainScene extends Phaser.Scene {
         }
         
         this.physics.world.isPaused = shouldPause;
-        // We no longer show the Phaser-based "PAUSED" text
-        // this.pauseText.setVisible(shouldPause); 
         this.autoFireEvent.paused = shouldPause;
 
         this.enemies.getChildren().forEach(enemy => {
@@ -458,24 +459,44 @@ class MainScene extends Phaser.Scene {
         this.sendFullStats(); // Send all updated stats
     }
 
+    // --- FIX: Re-added full movement logic ---
     handlePlayerMovement() {
         this.player.setVelocity(0);
         let velX = 0;
         let velY = 0;
 
-        if (this.input.activePointer.isDown) {
+        // --- 1. Joystick Controls (Mobile) ---
+        if (this.joystick && this.joystick.force > 0) {
+            if (this.joyStickCursorKeys.left.isDown) {
+                velX = -PLAYER_SPEED;
+            } else if (this.joyStickCursorKeys.right.isDown) {
+                velX = PLAYER_SPEED;
+            }
+
+            if (this.joyStickCursorKeys.up.isDown) {
+                velY = -PLAYER_SPEED;
+            } else if (this.joyStickCursorKeys.down.isDown) {
+                velY = PLAYER_SPEED;
+            }
+        }
+        // --- 2. Mouse Controls (PC) ---
+        else if (this.input.activePointer.isDown && !this.sys.game.device.input.touch) {
             const touchX = this.input.activePointer.worldX;
             const touchY = this.input.activePointer.worldY;
+
             const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, touchX, touchY);
             velX = Math.cos(angle) * PLAYER_SPEED;
             velY = Math.sin(angle) * PLAYER_SPEED;
             
-        } else { 
+        } 
+        // --- 3. Keyboard Controls (PC) ---
+        else { 
             if (this.cursors.left.isDown || this.wasd.left.isDown) {
                 velX = -PLAYER_SPEED;
             } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
                 velX = PLAYER_SPEED;
             }
+
             if (this.cursors.up.isDown || this.wasd.up.isDown) {
                 velY = -PLAYER_SPEED;
             } else if (this.cursors.down.isDown || this.wasd.down.isDown) {
@@ -483,11 +504,15 @@ class MainScene extends Phaser.Scene {
             }
         }
 
+        // --- Apply final velocity ---
         this.player.setVelocity(velX, velY);
-        if (velX !== 0 && velY !== 0 && !this.input.activePointer.isDown) {
+        
+        // Normalize diagonal speed (for joystick and keyboard)
+        if (velX !== 0 && velY !== 0 && !(this.input.activePointer.isDown && !this.sys.game.device.input.touch)) {
             this.player.body.velocity.normalize().scale(PLAYER_SPEED);
         }
         
+        // --- Rotation ---
         if (velX !== 0 || velY !== 0) {
             this.player.setRotation(Phaser.Math.Angle.Between(0, 0, velX, velY) + Math.PI / 2);
         }
@@ -542,7 +567,6 @@ class MainScene extends Phaser.Scene {
         this.physics.moveToObject(enemy, this.player, speed);
     }
     
-    // --- MODIFIED: Added late-game scaling ---
     spawnRegularEnemy(x, y) {
         const enemy = this.enemies.get();
         if (enemy) {
@@ -550,11 +574,10 @@ class MainScene extends Phaser.Scene {
             let health = ENEMY_BASE_HEALTH;
             let speed = ENEMY_CHASE_SPEED;
             
-            // --- NEW: Scaling logic ---
             if (this.playerLevel >= 25) {
                 const levelBonus = this.playerLevel - 25;
-                health += Math.floor(levelBonus / 2); // +1 HP every 2 levels after 25
-                speed += levelBonus * 0.5; // +0.5 speed every level after 25
+                health += Math.floor(levelBonus / 2); 
+                speed += levelBonus * 0.5; 
             }
             
             enemy.spawn(
@@ -569,7 +592,6 @@ class MainScene extends Phaser.Scene {
         }
     }
     
-    // --- MODIFIED: Added late-game scaling ---
     spawnElite(x, y) {
         const elite = this.enemies.get();
         if (elite) {
@@ -577,10 +599,9 @@ class MainScene extends Phaser.Scene {
             let health = ELITE_ENEMY_HEALTH;
             let speed = ELITE_ENEMY_SPEED;
             
-            // --- NEW: Scaling logic ---
             if (this.playerLevel >= 25) {
                 const levelBonus = this.playerLevel - 25;
-                health += levelBonus * 2; // Elites get +2 HP every level after 25
+                health += levelBonus * 2; 
                 speed += levelBonus * 0.25; 
             }
             
@@ -596,7 +617,6 @@ class MainScene extends Phaser.Scene {
         }
     }
 
-    // --- MODIFIED: Added late-game scaling ---
     spawnWave() {
         if (this.isGameOver) return;
         
@@ -606,17 +626,15 @@ class MainScene extends Phaser.Scene {
         const playerY = this.player.y;
         const spawnDistance = 500;
         
-        // --- NEW: More spawns in late game ---
         const waveSize = (this.playerLevel >= 25) ? 7 : 5;
         
         for (let i = 0; i < waveSize; i++) {
             let x, y;
             do {
                 x = Phaser.Math.Between(0, mapWidth);
-                y = Phaser.Math.Between(0, mapHeight);
+                y = Phaser.Math.Between(0, mapWidth);
             } while (Phaser.Math.Distance.Between(x, y, playerX, playerY) < spawnDistance);
 
-            // --- NEW: Higher Elite chance in late game ---
             let eliteChance = 0.2; // 20%
             if (this.playerLevel > 25) {
                 eliteChance = 0.4; // 40%
@@ -636,6 +654,7 @@ class MainScene extends Phaser.Scene {
         this.playerHealth -= damage;
         this.playerHealth = Math.max(0, this.playerHealth);
         
+        // --- FIX: Send max health ---
         this.onUpdate({ type: 'health', value: this.playerHealth, max: this.playerMaxHealth }); 
 
         if (this.playerHealth <= 0) {
@@ -660,12 +679,6 @@ class MainScene extends Phaser.Scene {
                 enemy.healthBar.clear();
             }
         });
-
-        // We no longer show the Phaser-based "GAME OVER" text
-        // this.add.text(this.cameras.main.midPoint.x, this.cameras.main.midPoint.y, 'GAME OVER', { fontSize: '64px', fill: '#FF0000' })
-        //     .setScrollFactor(0)
-        //     .setOrigin(0.5)
-        //     .setDepth(100);
     }
     
     setInvulnerable(player, duration = 1000) {
@@ -743,7 +756,7 @@ class MainScene extends Phaser.Scene {
     
     enterUpgradeState() {
         this.playerLevel++;
-        this.orbsForNextLevel++; 
+        this.orbsForNextLevel++; // This is where the cost for the *next* level increases
         
         this.onShowUpgrade(); 
         this.setInvulnerable(this.player, -1); 
@@ -759,8 +772,12 @@ class MainScene extends Phaser.Scene {
         this.onUpdate({ type: 'score', value: this.score });
         
         if (this.score >= this.nextUpgradeScore) {
-            this.nextUpgradeScore += this.orbsForNextLevel; // Set new target
+            // --- FIX: This is the correct scaling logic ---
+            // 1. Enter upgrade state, which increments orbsForNextLevel (e.g., to 6)
             this.enterUpgradeState(); 
+            // 2. Set the *new* score target by adding the *new* amount
+            // (e.g., next target = 5 + 6 = 11)
+            this.nextUpgradeScore += this.orbsForNextLevel; 
         }
     }
 }
@@ -770,7 +787,6 @@ class MainScene extends Phaser.Scene {
 const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, onShowUpgrade }, ref) => {
     const gameRef = useRef(null); 
 
-    // --- REF FIX: This is the correct implementation ---
     useImperativeHandle(ref, () => ({
         get game() {
             return gameRef.current;
@@ -780,11 +796,9 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
     useEffect(() => {
         const config = {
             type: Phaser.AUTO,
-            // --- FULLSCREEN CHANGE: Use window size ---
             width: window.innerWidth,
             height: window.innerHeight,
             scale: {
-                // --- FULLSCREEN CHANGE: Resize to fill parent ---
                 mode: Phaser.Scale.RESIZE,
                 parent: 'game-container',
             },
@@ -796,6 +810,16 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
                     debug: false 
                 }
             },
+            // --- FIX: Re-added the plugin config ---
+            plugins: {
+                scene: [{
+                    key: 'rexVirtualJoystick',
+                    plugin: VirtualJoystickPlugin,
+                    start: true,
+                    mapping: 'joystickPlugin' // We'll access it via this.joystickPlugin
+                }]
+            },
+            // --- End Plugin Config ---
             scene: [MainScene]
         };
 
@@ -812,7 +836,9 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
             game.destroy(true);
             gameRef.current = null;
         };
-    }, [onUpdate, onTogglePause, onShowUpgrade]); 
+      // --- BUG FIX: Removed 'onTogglePause' from dependency array ---
+      // This stops the game from re-creating itself when you pause/level up
+    }, [onUpdate, onShowUpgrade]); 
 
     useEffect(() => {
         if (gameRef.current && gameRef.current.scene) {
