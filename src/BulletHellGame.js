@@ -155,6 +155,7 @@ class MainScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
         
         // --- JOYSTICK CHANGE: Smaller and Bottom-Center ---
+        // This logic is now dynamic and will work with the new fullscreen size
         if (this.sys.game.device.input.touch) {
             // Position joystick in bottom-center of the *camera*
             const joyStickX = this.cameras.main.width / 2;
@@ -204,6 +205,8 @@ class MainScene extends Phaser.Scene {
             active: false
         });
         
+        // This text is now hidden (we use the React pause menu)
+        // But it's good to keep for debugging
         this.pauseText = this.add.text(
             this.cameras.main.width / 2, 
             this.cameras.main.height / 2, 
@@ -294,7 +297,8 @@ class MainScene extends Phaser.Scene {
         }
         
         this.physics.world.isPaused = shouldPause;
-        this.pauseText.setVisible(shouldPause);
+        // We no longer show the Phaser-based "PAUSED" text
+        // this.pauseText.setVisible(shouldPause); 
         this.autoFireEvent.paused = shouldPause;
 
         console.log(`Game Paused: ${shouldPause}`);
@@ -467,10 +471,11 @@ class MainScene extends Phaser.Scene {
         if (this.pauseText) this.pauseText.setVisible(false);
         this.thrusterEmitter.stop(); 
 
-        this.add.text(this.cameras.main.midPoint.x, this.cameras.main.midPoint.y, 'GAME OVER', { fontSize: '64px', fill: '#FF0000' })
-            .setScrollFactor(0)
-            .setOrigin(0.5)
-            .setDepth(100);
+        // We no longer show the Phaser-based "GAME OVER" text
+        // this.add.text(this.cameras.main.midPoint.x, this.cameras.main.midPoint.y, 'GAME OVER', { fontSize: '64px', fill: '#FF0000' })
+        //     .setScrollFactor(0)
+        //     .setOrigin(0.5)
+        //     .setDepth(100);
     }
     
     setInvulnerable(player, duration) {
@@ -543,12 +548,12 @@ const BulletHellGame = ({ onUpdate, isPaused, onTogglePause }) => {
     useEffect(() => {
         const config = {
             type: Phaser.AUTO,
-            // --- PORTRAIT CHANGE: Set 600x800 base resolution ---
-            width: 600,
-            height: 800,
+            // --- FULLSCREEN CHANGE: Use window size ---
+            width: window.innerWidth,
+            height: window.innerHeight,
             scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                // --- FULLSCREEN CHANGE: Resize to fill parent ---
+                mode: Phaser.Scale.RESIZE,
                 parent: 'game-container',
             },
             parent: 'game-container',

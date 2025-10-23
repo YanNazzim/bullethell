@@ -3,22 +3,24 @@ import './App.css';
 import BulletHellGame from './BulletHellGame'; // Import the game component
 
 function App() {
-  // State for the orientation warning
-  const [showOrientationWarning, setShowOrientationWarning] = useState(
-    window.innerHeight > window.innerWidth
-  );
-
   // State for pausing the game
   const [isPaused, setIsPaused] = useState(false);
-  
-  // --- NEW: Check for touch device ---
-  const [isTouchDevice] = useState(
-    () => ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
-  );
+  // --- NEW: State for the pause menu visibility ---
+  const [showPauseMenu, setShowPauseMenu] = useState(false);
 
-  // --- FIX: Create a stable pause toggle function ---
+  // --- Check for touch device to show/hide joystick help text (in future) ---
+  // const [isTouchDevice] = useState(
+  //   () => ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+  // );
+
+  // --- NEW: Toggle for Pause Menu ---
   const togglePause = useCallback(() => {
-    setIsPaused(p => !p);
+    // When we toggle, we update both the game's pause state AND the menu's visibility
+    setIsPaused(p => {
+      const newPauseState = !p;
+      setShowPauseMenu(newPauseState); // Show menu when paused, hide when unpaused
+      return newPauseState;
+    });
   }, []); // The empty array [] means it's created only once.
 
   // Game State to be displayed in the React UI
@@ -49,75 +51,75 @@ function App() {
     });
   }, []);
 
+  // --- NEW: Handle restart from pause menu ---
+  const handleRestart = () => {
+    window.location.reload();
+  };
+
   return (
     <div className="App">
-      {/* Orientation Warning Overlay */}
-      {showOrientationWarning && (
-        <div className="orientation-overlay">
-          <div className="orientation-message">
-            <h2>Rotate Your Device</h2>
-            <p>For the best experience, please rotate your device to landscape mode.</p>
-            <button 
-              className="restart-button" 
-              onClick={() => setShowOrientationWarning(false)}
-            >
-              Start Game
-            </button>
-          </div>
-        </div>
-      )}
+      {/* This is the new UI layer. It sits on top of the game canvas.
+        It's defined in your new App.css.
+      */}
+      <div className="game-ui-overlay">
 
-      <header className="App-header">
-        <h1>Bullet Hell Survival</h1>
-        {/* The Game Stats UI controlled by React State */}
+        {/* --- STATS: Now correctly placed inside the overlay --- */}
         <div className="game-stats">
           <div>SCORE: {gameState.score}</div>
           <div className={gameState.health <= 2 ? 'game-stats-health-low' : ''}>
             HEALTH: {gameState.health} / 10
           </div>
-          {/* Pause Button */}
-          {!showOrientationWarning && (
-            <button className="pause-button" onClick={togglePause}> {/* <-- Use stable function */}
-              {isPaused ? 'Resume' : 'Pause'}
-            </button>
-          )}
+          {/* --- PAUSE ICON BUTTON --- */}
+          <button className="pause-button" onClick={togglePause}>
+            <div className="pause-icon" />
+          </button>
         </div>
-      </header>
-      
-      {/* The Game Canvas Container */}
-      <div id="game-container">
-        {/* Game Over Overlay controlled by React */}
+
+        {/* --- NEW: Pause Menu Overlay --- */}
+        {showPauseMenu && (
+          <div className="pause-menu-overlay">
+            <h2>PAUSED</h2>
+            <button className="restart-button" onClick={togglePause}>
+              Continue
+            </button>
+            <button 
+              className="restart-button"
+              onClick={handleRestart}
+            >
+              Restart Game
+            </button>
+          </div>
+        )}
+
+        {/* --- Game Over Overlay controlled by React --- */}
         {gameState.isGameOver && (
           <div className="game-over-overlay">
             <h2>GAME OVER</h2>
+            <button 
+              className="restart-button"
+              onClick={handleRestart}
+            >
+              Restart Game
+            </button>
           </div>
         )}
-        
-        {/* Game only renders after warning is dismissed */}
-        {!showOrientationWarning && (
-          <BulletHellGame 
-            onUpdate={handleGameUpdate} 
-            isPaused={isPaused}
-            onTogglePause={togglePause} // <-- Pass stable function
-          />
-        )}
+
+      </div> {/* End of game-ui-overlay */}
+      
+
+      {/* The Game Canvas Container. 
+        It's now fullscreen as defined in your App.css 
+      */}
+      <div id="game-container">
+        <BulletHellGame 
+          onUpdate={handleGameUpdate} 
+          isPaused={isPaused}
+          onTogglePause={togglePause} // <-- Pass stable function
+        />
       </div>
 
-      {/* --- UPDATED: Controls Text --- */}
-      <div className="controls-text">
-        <p>
-          <strong>
-            {isTouchDevice ? 'Use Joystick' : 'Mouse/WASD/Arrows'}
-          </strong>
-          {' '}to move. Avoid the enemy ships!
-        </p>
-        <button 
-          className="restart-button"
-          onClick={() => window.location.reload()} // Simplest restart: reload the page
-        >
-          Restart Game
-        </button>
-      </div>
+      {/* --- REMOVED: Old controls-text and restart button --- */}
+
     </div>
   );
 }
