@@ -1,6 +1,14 @@
 /* src/index.css */
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
+/* --- NEW: Make root elements fill screen --- */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden; /* Prevent scrollbars */
+}
+
+
 body {
   margin: 0;
   font-family: 'Share Tech Mono', monospace;
