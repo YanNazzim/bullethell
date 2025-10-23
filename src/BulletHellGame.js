@@ -154,19 +154,19 @@ class MainScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-P', this.onTogglePause, this);
         this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
         
-        // --- FIX: Create Joystick only on Touch Devices ---
+        // --- JOYSTICK CHANGE: Smaller and Bottom-Center ---
         if (this.sys.game.device.input.touch) {
-            // Position joystick in bottom-left corner of the *camera*
-            const joyStickX = this.cameras.main.width * 0.18;
-            const joyStickY = this.cameras.main.height * 0.75;
+            // Position joystick in bottom-center of the *camera*
+            const joyStickX = this.cameras.main.width / 2;
+            const joyStickY = this.cameras.main.height * 0.85; // 85% down
 
             // --- Use the mapped plugin 'this.joystickPlugin' from the scene ---
             this.joystick = this.joystickPlugin.add(this, {
                 x: joyStickX,
                 y: joyStickY,
-                radius: 80,
-                base: this.add.circle(0, 0, 80, 0x888888, 0.3), // Faded base
-                thumb: this.add.circle(0, 0, 40, 0xcccccc, 0.5), // Faded thumb
+                radius: 60, // Smaller base
+                base: this.add.circle(0, 0, 60, 0x888888, 0.3), // Faded base
+                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), // Smaller thumb
                 dir: '8dir', // 8 directions
                 forceMin: 16,
             }).setScrollFactor(0); // Stick to camera
@@ -543,8 +543,9 @@ const BulletHellGame = ({ onUpdate, isPaused, onTogglePause }) => {
     useEffect(() => {
         const config = {
             type: Phaser.AUTO,
-            width: 800,
-            height: 600,
+            // --- PORTRAIT CHANGE: Set 600x800 base resolution ---
+            width: 600,
+            height: 800,
             scale: {
                 mode: Phaser.Scale.FIT,
                 autoCenter: Phaser.Scale.CENTER_BOTH,
