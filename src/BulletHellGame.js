@@ -114,7 +114,7 @@ const WEAPON_DB = {
     'electricBolt': {
         name: 'Electric Bolt',
         description: 'Zaps nearby enemies. Upgrades reduce cooldown.',
-        image: 'assets/icon_bolt.js',
+        image: 'assets/icon_bolt.png',
         maxLevel: 8,
         acquire: (scene, weaponState) => {
             weaponState.delay = 1000; 
