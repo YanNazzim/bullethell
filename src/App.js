@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 // Default player base speed used by initial game state
 const PLAYER_BASE_SPEED = 150; 
 
-// --- MainMenu Component (NEW) ---
+// --- MainMenu Component (No change) ---
 function MainMenu({ highScores, onStartGame, onViewLeaderboard }) {
   return (
     <div className="main-menu-overlay">
@@ -114,11 +114,38 @@ function App() {
   
   const showUpgradeMenuRef = useRef(false);
   
+  const gameInstanceRef = useRef(null);
+  
+  // --- NEW BOSS UI STATE ---
+  const [isBossActive, setIsBossActive] = useState(false);
+  const [bossDirection, setBossDirection] = useState(null); // Angle in degrees, or null if on screen
+  // --- NEW: Controls the visibility of the "BOSS ROUND!" text and pulse effect
+  const [showBossIndicator, setShowBossIndicator] = useState(false); 
+  // --- END NEW BOSS UI STATE ---
+  
   useEffect(() => {
     showUpgradeMenuRef.current = showUpgradeMenu;
   }, [showUpgradeMenu]);
   
-  const gameInstanceRef = useRef(null);
+  // --- NEW useEffect for Boss Indicator Timer ---
+  useEffect(() => {
+    if (isBossActive) {
+      // Show the full indicator when the boss first spawns
+      setShowBossIndicator(true);
+      
+      // Set a timer to hide the full indicator after 5 seconds (leaving only the arrow if needed)
+      const timer = setTimeout(() => {
+        setShowBossIndicator(false);
+      }, 5000); 
+      
+      // If isBossActive becomes false (boss killed), clean up the timer immediately
+      return () => clearTimeout(timer); 
+    } else {
+      setShowBossIndicator(false); // Ensure it's hidden if boss is defeated/inactive
+    }
+  }, [isBossActive]);
+  // --- END NEW useEffect ---
+
 
   const togglePause = useCallback(() => {
     // Only allow pause if currently playing
@@ -143,6 +170,7 @@ function App() {
     critChance: 0,
     critDamage: 1.5,
     bulletBounces: 0
+    // isBossActive and bossDirection managed separately for clearer UI rendering logic
   });
 
   const handleGameUpdate = useCallback((data) => {
@@ -155,6 +183,10 @@ function App() {
         case 'gameOver':
           return { ...prevState, isGameOver: data.value };
         case 'fullStats':
+          // --- UPDATED: Handle new boss stats ---
+          setIsBossActive(data.isBossActive);
+          setBossDirection(data.bossDirection);
+          // --- END UPDATED ---
           return {
             ...prevState,
             level: data.level,
@@ -163,7 +195,6 @@ function App() {
             moveSpeed: data.moveSpeed,
             weapons: data.weapons,
             playerBaseDamage: data.playerBaseDamage,
-            // FIX: Corrected property name from 'data.playerCritChance' to 'data.critChance'
             critChance: data.critChance, 
             critDamage: data.critDamage,
             bulletBounces: data.bulletBounces
@@ -269,6 +300,12 @@ function App() {
     setIsPaused(false);
     setShowPauseMenu(false);
     setFinalScore(0);
+    
+    // --- NEW: Reset boss state on restart ---
+    setIsBossActive(false); 
+    setBossDirection(null);
+    setShowBossIndicator(false);
+    
     setGameStatus('menu'); 
     fetchLeaderboard(); // Refresh menu leaderboard
     
@@ -308,6 +345,10 @@ function App() {
             />
           );
       }
+      
+      // Logic for rendering the BOSS UI
+      const shouldShowBossUI = isBossActive && (showBossIndicator || bossDirection !== null);
+      const bossIndicatorClass = showBossIndicator ? "" : "arrow-only";
       
       return (
         <>
@@ -385,6 +426,25 @@ function App() {
                   )}
                 </div>
               </div>
+        
+              {/* --- NEW: BOSS UI INDICATOR --- */}
+              {shouldShowBossUI && (
+                  <div className={`boss-round-indicator ${bossIndicatorClass}`}>
+                      {/* Show BOSS ROUND! text ONLY during the 5 second splash */}
+                      {showBossIndicator && <span>BOSS ROUND!</span>}
+                      
+                      {/* Show arrow if boss is active AND off-screen (bossDirection is set) */}
+                      {isBossActive && bossDirection !== null && (
+                          <div 
+                              className="boss-direction-arrow-container"
+                              style={{ transform: `rotate(${bossDirection}deg)` }}
+                          >
+                            <div className="boss-direction-arrow"></div> 
+                          </div>
+                      )}
+                  </div>
+              )}
+              {/* --- END NEW --- */}
         
               {showPauseMenu && (
                 <div className="pause-menu-overlay">

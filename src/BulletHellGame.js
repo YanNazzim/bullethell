@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import VirtualJoystickPlugin from 'phaser3-rex-plugins/plugins/virtualjoystick-plugin.js';
 
 // --- CONFIGURATION CONSTANTS ---
-const PLAYER_BASE_SPEED = 150; 
+const PLAYER_BASE_SPEED = 200; 
 const PLAYER_HEALTH = 10;
 
 const BULLET_SPEED = 600; // MODIFIED: Increased bullet speed from 450 to 600
@@ -21,6 +21,14 @@ const ELITE_ENEMY_DAMAGE = 3;
 const BOOMERANG_ENEMY_HEALTH = 12; // Chunky health
 const BOOMERANG_ENEMY_DAMAGE = 2; 
 const BOOMERANG_ENEMY_CHASE_SPEED = 120; // NEW: Fast chase speed
+
+// --- NEW BOSS CONSTANTS ---
+const BOSS_LEVEL_INTERVAL = 30; // Boss spawns every 30 player levels
+const BOSS_BASE_HEALTH = 150; 
+const BOSS_DAMAGE = 5;
+const BOSS_SHOOT_RATE_MS = 1500; // Boss fires every 1.5 seconds
+const BOSS_BULLET_SPEED = 400; // Slower bullet than player bullets
+const BOSS_XP_REWARD = 100; // Large XP reward
 
 const MAX_ENEMIES = 150;
 const MAX_BOOMERANG_ENEMIES = 3; 
@@ -136,7 +144,7 @@ const WEAPON_DB = {
         }
     },
     'shield': {
-        name: 'Spinning Shield',
+        name: "Spinning Orb's",
         description: 'Orbs circle the player, damaging enemies. Upgrades add orbs/damage.',
         image: 'assets/icon_shield.png',
         maxLevel: 6,
@@ -156,7 +164,7 @@ const WEAPON_DB = {
             
             scene.shieldOrbs.getChildren().forEach(orb => {
                 orb.setScale(0.1).setTint(0x00aaff); 
-                orb.body.setCircle(50);
+                orb.body.setCircle(250);
                 orb.body.setAllowGravity(false);
             });
             
@@ -199,7 +207,7 @@ const WEAPON_DB = {
 
 // --- PHASER SCENES ---
 
-// --- UPDATED: Projectile Class ---
+// --- UPDATED: Projectile Class (Can now be used by Boss) ---
 class Projectile extends Phaser.Physics.Arcade.Image {
     constructor(scene, x, y, texture) {
         super(scene, x, y, texture);
@@ -212,36 +220,44 @@ class Projectile extends Phaser.Physics.Arcade.Image {
         this.setData('vy', 0);
         
         this.despawnTimer = null;
-        this.bouncesLeft = 0; // --- NEW: Bounce tracker
-        this.enemiesHit = new Set(); // --- NEW: Prevents hitting same enemy twice
+        this.bouncesLeft = 0; 
+        this.enemiesHit = new Set(); 
+        this.setData('isBossBullet', false); // NEW: Identify owner
+        this.setData('damage', 0); // NEW: Store damage for boss bullet
     }
 
-    fire(x, y, angle) {
+    fire(x, y, angle, isBossBullet = false, damage = 0) {
         if (this.despawnTimer) {
             this.despawnTimer.remove(false);
         }
         
-        this.setTexture('bullet');
         this.body.enable = true;
         this.body.reset(x, y); 
-        
         this.setRotation(angle); 
-        this.setActive(true).setVisible(true).setScale(.04);
+        
+        // --- Bullet properties based on owner ---
+        const speed = isBossBullet ? BOSS_BULLET_SPEED : BULLET_SPEED;
+        const scale = isBossBullet ? 0.1 : 0.04; // Boss bullets are larger
+        const tint = isBossBullet ? 0xcc00cc : 0xffffff; // Purple tint for boss bullet
+        
+        this.setTexture(isBossBullet ? 'bullet' : 'bullet'); // Re-using 'bullet' sprite
+        this.setActive(true).setVisible(true).setScale(scale).setTint(tint);
         this.body.setCircle(500);
 
-        // --- NEW: Set bounces from scene ---
-        this.bouncesLeft = this.scene.bulletBounces;
+        this.setData('isBossBullet', isBossBullet);
+        this.setData('damage', isBossBullet ? damage : 0);
+        this.bouncesLeft = isBossBullet ? 0 : this.scene.bulletBounces; // Player bounces only
         this.enemiesHit.clear();
 
-        const vx = Math.cos(angle) * BULLET_SPEED;
-        const vy = Math.sin(angle) * BULLET_SPEED;
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
 
         this.setData('vx', vx);
         this.setData('vy', vy);
         
         this.body.setVelocity(vx, vy);
 
-        this.despawnTimer = this.scene.time.delayedCall(4000, this.disableProjectile, [], this); // MODIFIED: Increased duration for longer travel
+        this.despawnTimer = this.scene.time.delayedCall(4000, this.disableProjectile, [], this); 
     }
 
     disableProjectile() {
@@ -270,7 +286,7 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         this.armorBar.setDepth(8); 
     }
 
-    spawn(x, y, key, scale, health, speed, damage, isElite) {
+    spawn(x, y, key, scale, health, speed, damage, isElite, isBoss = false) { // NEW: isBoss flag
         this.scene.add.existing(this);
         this.scene.physics.add.existing(this);
         
@@ -285,6 +301,7 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         this.setData('speed', speed);
         this.setData('damage', damage);
         this.setData('isElite', isElite);
+        this.setData('isBoss', isBoss); // NEW: Store boss state
         
         // --- NEW: Armor for Elite Enemies (0.5 max health) ---
         const maxArmor = isElite ? Math.floor(health * 0.5) : 0;
@@ -296,7 +313,13 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         this.setData('angle', 0);
         
         // --- UPDATED: Scaling and Tinting ---
-        if (isElite) {
+        if (isBoss) {
+            this.setTint(0xcc00cc); // Purple Boss tint
+            this.body.setCircle(400); // Larger collision circle
+            this.body.setOffset(400, 400);
+            this.setImmovable(true); // Boss does not move or get pushed
+            
+        } else if (isElite) {
             this.setTint(0xff0000);
             this.body.setCircle(250); 
             this.body.setOffset(250, 250); 
@@ -313,7 +336,7 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         
         this.drawHealthBar();
         this.healthBar.setVisible(true);
-        this.armorBar.setVisible(isElite);
+        this.armorBar.setVisible(isElite || isBoss); // Boss can also have armor visibility
     }
     
     // --- UPDATED: takeDamage now handles armor reduction ---
@@ -324,8 +347,8 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         let newHealth = this.getData('health');
         let newArmor = this.getData('armor');
         
-        // 1. Damage Armor first (if elite and has armor)
-        if (this.getData('isElite') && newArmor > 0) {
+        // 1. Damage Armor first (if elite/boss and has armor)
+        if ((this.getData('isElite') || this.getData('isBoss')) && newArmor > 0) {
             const damageToArmor = Math.min(remainingDamage, newArmor);
             newArmor -= damageToArmor;
             remainingDamage -= damageToArmor;
@@ -348,7 +371,9 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         
         this.scene.time.delayedCall(50, () => {
             if (this.active) {
-                if (this.getData('isElite')) {
+                if (this.getData('isBoss')) {
+                    this.setTint(0xcc00cc);
+                } else if (this.getData('isElite')) {
                     this.setTint(0xff0000); 
                 } else if (this.data.get('isBoomerang')) {
                     this.setTint(0xffaa00);
@@ -387,8 +412,8 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         this.healthBar.fillStyle(pHealth < 0.3 ? 0xff0000 : 0x00ff00); 
         this.healthBar.fillRect(offsetX, offsetYHealth, w * pHealth, h);
         
-        // --- Draw Armor Bar (Elite only, using offsets) ---
-        if (this.getData('isElite')) {
+        // --- Draw Armor Bar (Elite/Boss only, using offsets) ---
+        if (this.getData('isElite') || this.getData('isBoss')) {
              this.armorBar.fillStyle(0x333333); // Background
              this.armorBar.fillRect(offsetX, offsetYArmor, w, h);
              
@@ -410,17 +435,42 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         // This makes the drawing coordinates inside drawHealthBar() relative to this new position.
         this.healthBar.setPosition(this.x, this.y);
         this.armorBar.setPosition(this.x, this.y);
+        
+        // --- NEW: Boss rotation for visual effect ---
+        if (this.data.get('isBoss')) {
+             this.setRotation(this.rotation + 0.005);
+        }
     }
 
-    // --- UPDATED: Kill function to clear all bars and update Boomerang count ---
+    // --- UPDATED: Kill function to clear all bars and update Boomerang count / BOSS state ---
     kill() {
         this.healthBar.clear(); 
         this.armorBar.clear(); 
-        this.healthBar.setVisible(false); // FIX: Hide graphic object on death
-        this.armorBar.setVisible(false); // FIX: Hide graphic object on death
+        this.healthBar.setVisible(false); 
+        this.armorBar.setVisible(false); 
         
         if (this.data.get('isBoomerang')) {
             this.scene.boomerangEnemiesCount = Math.max(0, this.scene.boomerangEnemiesCount - 1);
+        }
+        
+        if (this.data.get('isBoss')) {
+            // Drop large XP reward on boss kill
+            for (let i = 0; i < BOSS_XP_REWARD; i++) {
+                const orb = this.scene.expOrbs.get(this.x + Phaser.Math.Between(-100, 100), this.y + Phaser.Math.Between(-100, 100), 'exp_orb');
+                if (orb) {
+                    orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
+                    orb.body.setCircle(8); 
+                    orb.body.enable = true;
+                    orb.body.moves = true;
+                }
+            }
+            
+            this.scene.isBossActive = false; // Reset boss flag
+            if (this.scene.bossShootEvent) {
+                this.scene.bossShootEvent.remove(); // Stop boss attack
+                this.scene.bossShootEvent = null;
+            }
+            this.scene.boss = null;
         }
         
         this.disableBody(true, true); 
@@ -451,19 +501,18 @@ class MainScene extends Phaser.Scene {
         this.joystickPlugin = null; 
         
         this.onShowUpgrade = () => {}; 
-        // --- NEW PROP: Handle game over submission ---
         this.onGameOverSubmit = () => {}; 
         
         // --- UPDATED: Player Stats (Managed by Scene) ---
         this.playerHealth = PLAYER_HEALTH;
         this.playerMaxHealth = PLAYER_HEALTH;
-        this.playerWeaponDamage = 0; // Set by autoBullet.sync
-        this.playerBaseDamage = 0; // --- NEW: Upgraded stat
+        this.playerWeaponDamage = 0; 
+        this.playerBaseDamage = 0; 
         this.playerSpeed = PLAYER_BASE_SPEED; 
         this.playerLevel = 1;
-        this.playerCritChance = 0; // --- NEW: Upgraded stat (0.0 to 1.0)
-        this.playerCritDamage = 1.5; // --- NEW: Upgraded stat (1.5 = 150%)
-        this.bulletBounces = 0; // --- NEW: Upgraded stat
+        this.playerCritChance = 0; 
+        this.playerCritDamage = 1.5; 
+        this.bulletBounces = 0; 
         
         this.playerWeaponInventory = new Map();
         
@@ -474,14 +523,21 @@ class MainScene extends Phaser.Scene {
         this.orbsForNextLevel = 5;
         this.nextUpgradeScore = 5;
         
-        this.boomerangEnemiesCount = 0; // --- NEW: Boomerang Enemy Tracker
+        this.boomerangEnemiesCount = 0; 
+        
+        // --- NEW BOSS STATE ---
+        this.isBossActive = false;
+        this.boss = null;
+        this.bossShootEvent = null; 
+        this.bossDirection = 0; // Angle (in degrees) for the waypoint arrow
+        // --- END NEW BOSS STATE ---
     }
     
     init(data) {
         this.onUpdate = data.onUpdate;
         this.onTogglePause = data.onTogglePause;
         this.onShowUpgrade = data.onShowUpgrade;
-        this.onGameOverSubmit = data.onGameOverSubmit; // --- NEW: Get new prop
+        this.onGameOverSubmit = data.onGameOverSubmit; 
     }
 
     preload() {
@@ -494,7 +550,8 @@ class MainScene extends Phaser.Scene {
         this.load.image('shield', 'assets/icon_shield.png');
         this.load.image('bullet', 'assets/laser.png');
         this.load.image('elite_enemy', 'assets/elite_enemy.png'); 
-        this.load.image('boomerang_enemy', 'assets/boomerang_enemy.png'); // --- NEW: Boomerang enemy placeholder
+        this.load.image('boomerang_enemy', 'assets/boomerang_enemy.png');
+        this.load.image('boss', 'assets/purple_boss.png'); // NEW: Boss image
     }
 
     create() {
@@ -509,7 +566,10 @@ class MainScene extends Phaser.Scene {
         this.playerCritChance = 0;
         this.playerCritDamage = 1.5;
         this.bulletBounces = 0;
-        this.boomerangEnemiesCount = 0; // --- Reset tracker
+        this.boomerangEnemiesCount = 0; 
+        this.isBossActive = false; // NEW: Reset Boss
+        this.boss = null;
+        this.bossShootEvent = null;
 
         this.orbsForNextLevel = 5;
         this.nextUpgradeScore = 5;
@@ -521,13 +581,7 @@ class MainScene extends Phaser.Scene {
         
         this.isGameOver = false;
 
-        // --- UPDATED: Ensure all sides check collision for boomerang bouncing (Player now collides with world bounds) ---
         this.physics.world.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
-        // We REMOVED the following lines to enforce world boundaries:
-        // this.physics.world.checkCollision.down = false; 
-        // this.physics.world.checkCollision.up = false;
-        // this.physics.world.checkCollision.left = false;
-        // this.physics.world.checkCollision.right = false;
 
         this.background = this.add.image(MAP_WIDTH / 2, MAP_HEIGHT / 2, 'space_bg');
         this.background.displayWidth = MAP_WIDTH;
@@ -560,13 +614,10 @@ class MainScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-P', this.onTogglePause, this);
         this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
         
-        // --- MODIFIED: Dynamic Joystick Setup (No fixed joystick created here) ---
         if (this.sys.game.device.input.touch) {
             this.input.on('pointerdown', this.handleTouchDown, this);
             this.input.on('pointerup', this.handleTouchUp, this);
         }
-        // --- END MODIFIED: Dynamic Joystick Setup ---
-
 
         this.bullets = this.physics.add.group({
             classType: Projectile, 
@@ -574,6 +625,15 @@ class MainScene extends Phaser.Scene {
             runChildUpdate: true, 
             key: 'bullet'
         });
+        
+        // --- NEW: Boss Bullet Group (for separate collision with player) ---
+        this.bossBullets = this.physics.add.group({
+             classType: Projectile,
+             maxSize: 10,
+             runChildUpdate: true,
+             key: 'bullet'
+        });
+        // --- END NEW ---
         
         this.enemies = this.physics.add.group({
             classType: Enemy, 
@@ -601,7 +661,12 @@ class MainScene extends Phaser.Scene {
             .setDepth(200)
             .setVisible(false);
 
-        this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
+        // Player bullets hit enemies
+        this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this); 
+        // Boss bullets hit player
+        this.physics.add.overlap(this.bossBullets, this.player, this.hitPlayerByBossBullet, null, this); // NEW
+        
+        // Enemy body collisions
         this.physics.add.overlap(this.player, this.enemies, this.hitPlayerByEnemy, null, this);
         this.physics.add.collider(this.enemies, this.enemies); 
         
@@ -645,17 +710,14 @@ class MainScene extends Phaser.Scene {
                 thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), 
                 dir: '8dir', 
                 forceMin: 16,
-            }).setScrollFactor(0).setVisible(false); // FIXED: Removed .setDepth(100) from chain
+            }).setScrollFactor(0).setVisible(false); 
             
-            // FIXED: Apply setDepth directly to the GameObjects (base and thumb)
             this.joystick.base.setDepth(100); 
             this.joystick.thumb.setDepth(100); 
 
             this.joyStickCursorKeys = this.joystick.createCursorKeys();
         } 
         
-        // Now, set the base and thumb position to the EXACT pointer down location.
-        // This is the key to dictating the center by the tap position.
         this.joystick.base.x = pointer.x;
         this.joystick.base.y = pointer.y;
         this.joystick.thumb.x = pointer.x;
@@ -668,12 +730,11 @@ class MainScene extends Phaser.Scene {
     handleTouchUp(pointer) {
         if (this.joystick) {
             this.joystick.setVisible(false);
-            // Optionally stop player movement immediately on release
             this.player.setVelocity(0); 
         }
     }
     
-    // --- UPDATED: sendFullStats ---
+    // --- UPDATED: sendFullStats (includes Boss UI data) ---
     sendFullStats() {
         const weaponsForReact = [];
         for (const [key, state] of this.playerWeaponInventory.entries()) {
@@ -696,7 +757,32 @@ class MainScene extends Phaser.Scene {
             });
         }
         
-        // --- NEW: Send all stats ---
+        // --- Calculate Boss Direction (if active) ---
+        let bossDirection = null; // null means arrow should not be shown
+        if (this.isBossActive && this.boss) {
+            // NOTE: playerScreenX/Y removed to fix ESLint warnings as they were unused
+            
+            // Calculate boss position relative to the camera center
+            const bossScreenX = this.boss.x - this.cameras.main.worldView.x;
+            const bossScreenY = this.boss.y - this.cameras.main.worldView.y;
+            
+            // Check if boss is outside of camera view (+ buffer)
+            const isBossOffScreen = bossScreenX < -50 || bossScreenX > this.cameras.main.width + 50 || 
+                                    bossScreenY < -50 || bossScreenY > this.cameras.main.height + 50;
+
+            if (isBossOffScreen) {
+                // Calculate the angle from the player to the boss
+                const angleRad = Phaser.Math.Angle.Between(
+                    this.player.x, this.player.y,
+                    this.boss.x, this.boss.y
+                );
+                // Convert to degrees and normalize (0 to 360) for React CSS rotation
+                bossDirection = Phaser.Math.RadToDeg(angleRad);
+            }
+        }
+        this.bossDirection = bossDirection; // Store for next update/check
+        
+        // --- NEW: Send all stats + Boss data ---
         this.onUpdate({
             type: 'fullStats',
             level: this.playerLevel,
@@ -704,11 +790,13 @@ class MainScene extends Phaser.Scene {
             maxHealth: this.playerMaxHealth,
             moveSpeed: this.playerSpeed,
             weapons: weaponsForReact,
-            // --- NEW STATS ---
             playerBaseDamage: this.playerBaseDamage,
             critChance: this.playerCritChance,
             critDamage: this.playerCritDamage,
-            bulletBounces: this.bulletBounces
+            bulletBounces: this.bulletBounces,
+            // --- BOSS STATS ---
+            isBossActive: this.isBossActive, 
+            bossDirection: this.bossDirection 
         });
     }
 
@@ -721,15 +809,17 @@ class MainScene extends Phaser.Scene {
             // --- UPDATED: Enemy movement handler ---
             this.enemies.getChildren().forEach(enemy => {
                 if (enemy.active) {
-                    if (enemy.data.get('isBoomerang')) {
-                        // Boomerang now tracks, but we keep rotation for visual effect
+                    if (enemy.data.get('isBoss')) {
+                        // Boss is ranged and does not move towards the player
+                        enemy.body.setVelocity(0);
+                        // Boss rotation is handled in the Enemy.update() now
+                    }
+                    else if (enemy.data.get('isBoomerang')) {
                         this.trackPlayer(enemy);
                         enemy.setRotation(enemy.rotation + 0.05); 
                     } else {
                         this.trackPlayer(enemy);
                     }
-                    // Since 'runChildUpdate: true' is set on the enemies group, the Enemy.update()
-                    // method (which now repositions the health bars) is automatically called here.
                 }
             });
             // --- End Enemy movement handler ---
@@ -757,12 +847,13 @@ class MainScene extends Phaser.Scene {
             } else {
                 if (this.thrusterEmitter.emitting) this.thrusterEmitter.stop();
             }
+            
+            // Re-send stats on every frame to ensure boss direction marker is correct
+            this.sendFullStats();
         } else {
              if (this.thrusterEmitter.emitting) this.thrusterEmitter.stop();
         }
     }
-    
-    // --- REMOVED: handleBoomerangMovement method is no longer needed/correct ---
     
     handlePause(shouldPause) {
         if (this.isGameOver || this.physics.world.isPaused === shouldPause) {
@@ -773,6 +864,7 @@ class MainScene extends Phaser.Scene {
         
         if (this.autoFireEvent) this.autoFireEvent.paused = shouldPause;
         if (this.electricBoltEvent) this.electricBoltEvent.paused = shouldPause;
+        if (this.bossShootEvent) this.bossShootEvent.paused = shouldPause; // NEW: Pause Boss shooting
 
         this.enemies.getChildren().forEach(enemy => {
             if (enemy.healthBar) enemy.healthBar.setVisible(!shouldPause);
@@ -918,6 +1010,22 @@ class MainScene extends Phaser.Scene {
             bullet.fire(this.player.x, this.player.y, angle);
         }
     }
+    
+    // --- NEW: Boss Ranged Attack ---
+    bossFire() {
+        if (!this.boss || this.physics.world.isPaused || this.isGameOver) return;
+        
+        const bullet = this.bossBullets.get(0, 0); 
+        if (bullet) {
+            const angle = Phaser.Math.Angle.Between(
+                this.boss.x, this.boss.y,
+                this.player.x, this.player.y
+            );
+            // Boss shoots its own damage and bullet type
+            bullet.fire(this.boss.x, this.boss.y, angle, true, this.boss.getData('damage')); 
+        }
+    }
+    // --- END NEW ---
 
     // --- UPDATED: findNearestEnemy ---
     // Now finds enemy nearest to (x, y) and can exclude enemies
@@ -931,7 +1039,7 @@ class MainScene extends Phaser.Scene {
 
         activeEnemies.forEach(enemy => {
             // Check if enemy is in view and NOT in the exclude list
-            if (cam.worldView.contains(enemy.x, enemy.y) && !excludeList.includes(enemy)) {
+            if (cam.worldView.contains(enemy.x, enemy.y) && !excludeList.includes(enemy) && !enemy.data.get('isBoss')) {
                 const distance = Phaser.Math.Distance.Between(
                     x, y,
                     enemy.x, enemy.y
@@ -961,12 +1069,11 @@ class MainScene extends Phaser.Scene {
             let speed = ENEMY_CHASE_SPEED + levelBonus * 1.5;
             speed = Math.min(this.playerSpeed, speed); 
             
-            // Regular enemy scale is 0.3
+            // Regular enemy scale is 0.15
             enemy.spawn(x, y, 'enemy', 0.15, health, speed, ENEMY_DAMAGE_BODY, false);
         }
     }
     
-    // --- UPDATED: Boomerang Enemy Spawn Function (Now chases player) ---
     spawnBoomerangEnemy(x, y) {
         if (this.boomerangEnemiesCount >= MAX_BOOMERANG_ENEMIES) return;
 
@@ -978,17 +1085,14 @@ class MainScene extends Phaser.Scene {
             let health = BOOMERANG_ENEMY_HEALTH * (1 + levelBonus * 0.15); 
             health = Math.max(BOOMERANG_ENEMY_HEALTH, Math.floor(health));
 
-            // Set speed to the new fast chase speed
-            const speed = BOOMERANG_ENEMY_CHASE_SPEED;
+            let speed = BOOMERANG_ENEMY_CHASE_SPEED + levelBonus * 2.5; // Faster scaling
+            speed = Math.min(250, speed); // Cap at 250 (still fast)
 
-            // Regular enemy scale is 0.3
+            // Boomerang enemy scale is 0.3
             enemy.spawn(x, y, 'boomerang_enemy', 0.3, health, speed, BOOMERANG_ENEMY_DAMAGE, false);
-            
-            // Removed bouncing/orbit settings to allow for tracking
         }
     }
     
-    // --- UPDATED: Elite Spawn (10% larger than 0.3 scale) ---
     spawnElite(x, y) {
         const elite = this.enemies.get();
         if (elite) {
@@ -1002,11 +1106,53 @@ class MainScene extends Phaser.Scene {
             elite.spawn(x, y, 'elite_enemy', .33, health, speed, ELITE_ENEMY_DAMAGE, true); 
         }
     }
+    
+    // --- NEW: Boss Spawn Function ---
+    spawnBoss(x, y) {
+        const boss = this.enemies.get();
+        if (boss) {
+            this.isBossActive = true;
+            this.boss = boss;
+            
+            const levelMultiplier = Math.floor(this.playerLevel / BOSS_LEVEL_INTERVAL);
+            const levelBonus = this.playerLevel - 1;
+            
+            // Boss Health Scaling: Base * Level Mult (to ensure big jump at L30/60/90) * Linear Scaling
+            let health = BOSS_BASE_HEALTH * levelMultiplier * (1 + levelBonus * 0.2); 
+            health = Math.max(BOSS_BASE_HEALTH * levelMultiplier, Math.floor(health));
+            
+            // Boss starts with 50% armor, scaled by level
+            let maxArmor = Math.floor(health * (0.5 + levelMultiplier * 0.1));
+            
+            // Boss Damage Scaling: Scales linearly
+            const damage = BOSS_DAMAGE + levelBonus * 0.5;
+            
+            // Boss scale is 0.6 (large)
+            // Speed is 0 as it's a ranged boss
+            boss.spawn(x, y, 'boss', 0.6, health, 0, damage, true, true); 
+            
+            // Set the boss's current armor manually
+            boss.setData('armor', maxArmor);
+            boss.setData('maxArmor', maxArmor);
+            boss.drawHealthBar(); // Redraw with armor
+            
+            // Start the boss's firing event
+            this.bossShootEvent = this.time.addEvent({
+                delay: BOSS_SHOOT_RATE_MS,
+                callback: this.bossFire,
+                callbackScope: this,
+                loop: true
+            });
+            
+            console.log(`Boss spawned! Health: ${health}, Damage: ${damage}`);
+        }
+    }
+    // --- END NEW ---
 
-    // --- UPDATED: Spawn Wave to include Boomerang Enemy ---
+    // --- UPDATED: Spawn Wave to include Boss Spawn Check ---
     spawnWave() {
         if (this.isGameOver) return;
-        if (this.enemies.countActive(true) >= MAX_ENEMIES) return;
+        if (this.enemies.countActive(true) >= MAX_ENEMIES && !this.isBossActive) return;
 
         const mapWidth = MAP_WIDTH;
         const mapHeight = MAP_HEIGHT;
@@ -1014,12 +1160,33 @@ class MainScene extends Phaser.Scene {
         const playerY = this.player.y;
         const spawnDistance = 500;
         
+        // --- NEW BOSS LOGIC: Check for Boss Round ---
+        const isBossRound = this.playerLevel % BOSS_LEVEL_INTERVAL === 0 && this.playerLevel > 0;
+        
+        if (isBossRound && !this.isBossActive) {
+            // Find a far spawn location for the boss
+            let x, y;
+            const bossSpawnDistance = 1500;
+             do {
+                x = Phaser.Math.Between(0, mapWidth);
+                y = Phaser.Math.Between(0, mapHeight);
+            } while (Phaser.Math.Distance.Between(x, y, playerX, playerY) < bossSpawnDistance);
+
+            this.spawnBoss(x, y);
+            // Stop other enemy spawning during boss fight
+            return; 
+        } else if (this.isBossActive) {
+            // If boss is active, don't spawn regular enemies (or spawn much less/slower)
+             if(Math.random() < 0.2) return; // Reduce regular enemy spawning during boss fight
+        }
+        // --- END NEW BOSS LOGIC ---
+
         const baseWaveSize = 4;
         const waveSize = baseWaveSize + Math.floor(this.playerLevel / 5);
         let eliteChance = 0.05 + (this.playerLevel * 0.002);
         eliteChance = Math.min(0.25, eliteChance);
         
-        let boomerangChance = 0.1; // 10% chance to spawn a boomerang enemy if under limit
+        let boomerangChance = 0.1; 
 
         for (let i = 0; i < waveSize; i++) {
             let x, y;
@@ -1053,7 +1220,17 @@ class MainScene extends Phaser.Scene {
         }
     }
     
-    // --- MODIFIED: handleGameOver to call onGameOverSubmit ---
+    // --- NEW: Handle collision with Boss Bullet ---
+    hitPlayerByBossBullet(player, bullet) {
+        if (!player.active || !bullet.active || player.invulnerable) return;
+        
+        if (bullet.getData('isBossBullet')) {
+            this.updateHealth(bullet.getData('damage'));
+            bullet.disableProjectile();
+        }
+    }
+    // --- END NEW ---
+    
     handleGameOver() {
         this.isGameOver = true;
         this.player.setActive(false).setVisible(false);
@@ -1068,7 +1245,11 @@ class MainScene extends Phaser.Scene {
         if (this.shieldOrbs) this.shieldOrbs.destroy();
         if (this.shieldCollider) this.shieldCollider.destroy();
         
-        // --- NEW: Submit the final score to React ---
+        if (this.bossShootEvent) { // NEW: Stop boss attack on game over
+            this.bossShootEvent.remove(); 
+            this.bossShootEvent = null;
+        }
+        
         this.onGameOverSubmit(this.score);
     }
     
@@ -1113,8 +1294,10 @@ class MainScene extends Phaser.Scene {
 
     // --- HEAVILY UPDATED: hitEnemy (Handles Crit + Bounce + XP Persistence) ---
     hitEnemy(bullet, enemy) {
+        // Boss bullets are handled by hitPlayerByBossBullet
+        if (bullet.getData('isBossBullet')) return; 
+        
         if (!enemy.active || !bullet.active || bullet.enemiesHit.has(enemy)) {
-             // Don't hit inactive enemies or the same enemy twice on one bounce chain
             return;
         } 
         
@@ -1130,26 +1313,25 @@ class MainScene extends Phaser.Scene {
 
         // 3. Handle Orb Drop
         if (isDead) {
-            const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
-            if (orb) {
-                orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
-                orb.body.setCircle(8); 
-                orb.body.enable = true;
-                orb.body.moves = true;
-                // REMOVED: Orb despawn timer (Ensures orbs persist until collected)
-                /* this.time.delayedCall(5000, () => {
-                    if(orb.active) orb.disableBody(true, true);
-                });
-                */
+            // Normal enemy drop
+            if (!enemy.getData('isBoss')) {
+                const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
+                if (orb) {
+                    orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
+                    orb.body.setCircle(8); 
+                    orb.body.enable = true;
+                    orb.body.moves = true;
+                }
             }
+            // Boss drop is handled in Enemy.kill()
         }
         
         // 4. Handle Bouncing
         if (bullet.bouncesLeft > 0) {
             bullet.bouncesLeft--;
             
-            // Find a new target, excluding the one just hit
-            const nextTarget = this.findNearestEnemy(bullet.x, bullet.y, Array.from(bullet.enemiesHit));
+            // Find a new target, excluding the one just hit and any boss
+            const nextTarget = this.findNearestEnemy(bullet.x, bullet.y, Array.from(bullet.enemiesHit).concat(this.boss ? [this.boss] : []));
             
             if (nextTarget) {
                 // Fire at the new target
@@ -1187,13 +1369,16 @@ class MainScene extends Phaser.Scene {
             
             // If the enemy dies, we need to manually drop an orb since hitEnemy (which handles orbs) is not called.
             if (isDead) {
-                const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
-                if (orb) {
-                    orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
-                    orb.body.setCircle(8); 
-                    orb.body.enable = true;
-                    orb.body.moves = true;
+                 if (!enemy.getData('isBoss')) {
+                    const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
+                    if (orb) {
+                        orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
+                        orb.body.setCircle(8); 
+                        orb.body.enable = true;
+                        orb.body.moves = true;
+                    }
                 }
+                // Boss orb drop is handled in Enemy.kill()
             }
             
             enemy.shieldHitCooldown = true;
@@ -1389,7 +1574,8 @@ class MainScene extends Phaser.Scene {
             zappedEnemy.setTint(isCrit ? 0xffaa00 : zapColor);
             this.time.delayedCall(50, () => { 
                 if (zappedEnemy.active) { 
-                    if (zappedEnemy.getData('isElite')) zappedEnemy.setTint(0xff0000); 
+                    if (zappedEnemy.getData('isBoss')) zappedEnemy.setTint(0xcc00cc); 
+                    else if (zappedEnemy.getData('isElite')) zappedEnemy.setTint(0xff0000); 
                     else if (zappedEnemy.getData('isBoomerang')) zappedEnemy.setTint(0xffaa00);
                     else zappedEnemy.clearTint(); 
                 }
@@ -1397,18 +1583,16 @@ class MainScene extends Phaser.Scene {
 
             // --- FIX 1: Added 'isDead' check to spawn orb ---
             if (isDead) {
-                const orb = this.expOrbs.get(zappedEnemy.x, zappedEnemy.y, 'exp_orb');
-                if (orb) {
-                    orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
-                    orb.body.setCircle(8); 
-                    orb.body.enable = true;
-                    orb.body.moves = true;
-                    // REMOVED: Orb despawn timer (Ensures orbs persist until collected)
-                    /* this.time.delayedCall(5000, () => {
-                        if(orb.active) orb.disableBody(true, true);
-                    });
-                    */
-                }
+                 if (!zappedEnemy.getData('isBoss')) {
+                    const orb = this.expOrbs.get(zappedEnemy.x, zappedEnemy.y, 'exp_orb');
+                    if (orb) {
+                        orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
+                        orb.body.setCircle(8); 
+                        orb.body.enable = true;
+                        orb.body.moves = true;
+                    }
+                 }
+                 // Boss orb drop is handled in Enemy.kill()
             }
             // --- END FIX 1 ---
 
@@ -1416,9 +1600,8 @@ class MainScene extends Phaser.Scene {
             let nextTarget = null;
             let minDistance = Infinity;
             
-            // --- FIX 2: Replaced 'forEach' with 'for...of' loop ---
             for (const enemy of activeEnemies) {
-                if (enemy.active && !zappedEnemies.has(enemy)) { 
+                if (enemy.active && !zappedEnemies.has(enemy) && !enemy.getData('isBoss')) { // Don't chain to a boss
                     const distance = Phaser.Math.Distance.Between(currentTarget.x, currentTarget.y, enemy.x, enemy.y);
                     if (distance < minDistance) {
                         minDistance = distance;
@@ -1426,7 +1609,6 @@ class MainScene extends Phaser.Scene {
                     }
                 }
             }
-            // --- END FIX 2 ---
             
             currentTarget = nextTarget;
         }
@@ -1435,7 +1617,6 @@ class MainScene extends Phaser.Scene {
 
 // --- REACT COMPONENT (Wrapper) ---
 
-// --- MODIFIED PROPS: Added onGameOverSubmit ---
 const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, onShowUpgrade, onGameOverSubmit }, ref) => {
     const gameRef = useRef(null); 
 
@@ -1489,7 +1670,7 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
             gameRef.current = null;
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps 
-    }, [onUpdate, onShowUpgrade, onGameOverSubmit]); // --- MODIFIED: Include new prop ---
+    }, [onUpdate, onShowUpgrade, onGameOverSubmit]); 
 
     useEffect(() => {
         if (gameRef.current && gameRef.current.scene) {
