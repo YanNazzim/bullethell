@@ -6,7 +6,7 @@ import VirtualJoystickPlugin from 'phaser3-rex-plugins/plugins/virtualjoystick-p
 const PLAYER_BASE_SPEED = 150; 
 const PLAYER_HEALTH = 10;
 
-const BULLET_SPEED = 450;
+const BULLET_SPEED = 600; // MODIFIED: Increased bullet speed from 450 to 600
 
 const ENEMY_SPAWN_RATE_MS = 2500;
 const ENEMY_CHASE_SPEED = 60;
@@ -30,7 +30,7 @@ const MAP_HEIGHT = 5000;
 // --- UPDATED: STAT UPGRADE DATABASE ---
 const STAT_UPGRADE_DB = {
     'max_health': {
-        name: 'Max Health',
+        name: 'Increase Max Health',
         description: 'Increases maximum health by 1.',
         image: 'assets/icon_max_health.png',
         apply: (scene) => {
@@ -38,7 +38,7 @@ const STAT_UPGRADE_DB = {
         }
     },
         'restore_health': {
-        name: 'Max Health',
+        name: 'Restore to full health Health',
         description: 'Fills Health Bar.',
         image: 'assets/icon_restore_health.png',
         apply: (scene) => {
@@ -231,7 +231,7 @@ class Projectile extends Phaser.Physics.Arcade.Image {
         
         this.body.setVelocity(vx, vy);
 
-        this.despawnTimer = this.scene.time.delayedCall(2500, this.disableProjectile, [], this);
+        this.despawnTimer = this.scene.time.delayedCall(4000, this.disableProjectile, [], this); // MODIFIED: Increased duration for longer travel
     }
 
     disableProjectile() {
@@ -353,7 +353,7 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         return false; // Is not dead
     }
 
-    // --- UPDATED: Draw Health and Armor Bars (Removed crashing setStrokeStyle) ---
+    // --- UPDATED: Draw Health and Armor Bars (Chunkier and Closer) ---
     drawHealthBar() {
         this.healthBar.clear();
         this.armorBar.clear(); 
@@ -363,9 +363,10 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         const pArmor = this.getData('maxArmor') > 0 ? this.getData('armor') / this.getData('maxArmor') : 0;
         
         const w = (this.width * this.scaleX);
-        const h = 5; 
+        const h = 8; // MODIFIED: Increased height from 5 to 8
         const x = this.x - w / 2;
-        const yHealth = this.y - (this.height * this.scaleY) / 2 - (h * 2); 
+        // MODIFIED: Changed offset to (h * 1) to bring it closer to the enemy
+        const yHealth = this.y - (this.height * this.scaleY) / 2 - (h * 1); 
         const yArmor = yHealth - h - 2; // Above the health bar
 
         // --- Draw Health Bar ---
@@ -428,6 +429,8 @@ class MainScene extends Phaser.Scene {
         this.joystickPlugin = null; 
         
         this.onShowUpgrade = () => {}; 
+        // --- NEW PROP: Handle game over submission ---
+        this.onGameOverSubmit = () => {}; 
         
         // --- UPDATED: Player Stats (Managed by Scene) ---
         this.playerHealth = PLAYER_HEALTH;
@@ -456,6 +459,7 @@ class MainScene extends Phaser.Scene {
         this.onUpdate = data.onUpdate;
         this.onTogglePause = data.onTogglePause;
         this.onShowUpgrade = data.onShowUpgrade;
+        this.onGameOverSubmit = data.onGameOverSubmit; // --- NEW: Get new prop
     }
 
     preload() {
@@ -886,7 +890,7 @@ class MainScene extends Phaser.Scene {
             speed = Math.min(this.playerSpeed, speed); 
             
             // Regular enemy scale is 0.3
-            enemy.spawn(x, y, 'enemy', 0.3, health, speed, ENEMY_DAMAGE_BODY, false);
+            enemy.spawn(x, y, 'enemy', 0.15, health, speed, ENEMY_DAMAGE_BODY, false);
         }
     }
     
@@ -977,6 +981,7 @@ class MainScene extends Phaser.Scene {
         }
     }
     
+    // --- MODIFIED: handleGameOver to call onGameOverSubmit ---
     handleGameOver() {
         this.isGameOver = true;
         this.player.setActive(false).setVisible(false);
@@ -990,6 +995,9 @@ class MainScene extends Phaser.Scene {
         
         if (this.shieldOrbs) this.shieldOrbs.destroy();
         if (this.shieldCollider) this.shieldCollider.destroy();
+        
+        // --- NEW: Submit the final score to React ---
+        this.onGameOverSubmit(this.score);
     }
     
     setInvulnerable(player, duration = 1000) {
@@ -1031,7 +1039,7 @@ class MainScene extends Phaser.Scene {
         }
     }
 
-    // --- HEAVILY UPDATED: hitEnemy (Handles Crit + Bounce) ---
+    // --- HEAVILY UPDATED: hitEnemy (Handles Crit + Bounce + XP Persistence) ---
     hitEnemy(bullet, enemy) {
         if (!enemy.active || !bullet.active || bullet.enemiesHit.has(enemy)) {
              // Don't hit inactive enemies or the same enemy twice on one bounce chain
@@ -1056,9 +1064,11 @@ class MainScene extends Phaser.Scene {
                 orb.body.setCircle(8); 
                 orb.body.enable = true;
                 orb.body.moves = true;
-                this.time.delayedCall(5000, () => {
+                // REMOVED: Orb despawn timer (Ensures orbs persist until collected)
+                /* this.time.delayedCall(5000, () => {
                     if(orb.active) orb.disableBody(true, true);
                 });
+                */
             }
         }
         
@@ -1261,7 +1271,7 @@ class MainScene extends Phaser.Scene {
         });
     }
 
-    // --- UPDATED: Zap Enemies (Handles armor) ---
+    // --- UPDATED: Zap Enemies (Handles armor + XP Persistence) ---
     zapEnemies() {
         if (this.physics.world.isPaused || this.isGameOver || !this.playerWeaponInventory.has('electricBolt')) return;
         
@@ -1309,9 +1319,11 @@ class MainScene extends Phaser.Scene {
                     orb.body.setCircle(8); 
                     orb.body.enable = true;
                     orb.body.moves = true;
-                    this.time.delayedCall(5000, () => {
+                    // REMOVED: Orb despawn timer (Ensures orbs persist until collected)
+                    /* this.time.delayedCall(5000, () => {
                         if(orb.active) orb.disableBody(true, true);
                     });
+                    */
                 }
             }
             // --- END FIX 1 ---
@@ -1339,7 +1351,8 @@ class MainScene extends Phaser.Scene {
 
 // --- REACT COMPONENT (Wrapper) ---
 
-const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, onShowUpgrade }, ref) => {
+// --- MODIFIED PROPS: Added onGameOverSubmit ---
+const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, onShowUpgrade, onGameOverSubmit }, ref) => {
     const gameRef = useRef(null); 
 
     useImperativeHandle(ref, () => ({
@@ -1379,10 +1392,12 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
         const game = new Phaser.Game(config);
         gameRef.current = game;
         
+        // --- MODIFIED: Passing new prop to MainScene ---
         game.scene.start('MainScene', { 
             onUpdate: onUpdate || (() => {}),
             onTogglePause: onTogglePause || (() => {}),
-            onShowUpgrade: onShowUpgrade || (() => {}) 
+            onShowUpgrade: onShowUpgrade || (() => {}),
+            onGameOverSubmit: onGameOverSubmit || (() => {})
         });
 
         return () => {
@@ -1390,7 +1405,7 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
             gameRef.current = null;
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps 
-    }, [onUpdate, onShowUpgrade]); 
+    }, [onUpdate, onShowUpgrade, onGameOverSubmit]); // --- MODIFIED: Include new prop ---
 
     useEffect(() => {
         if (gameRef.current && gameRef.current.scene) {

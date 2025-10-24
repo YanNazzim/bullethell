@@ -6,12 +6,12 @@
   position: relative; 
 }
 
-/* --- Start Menu Overlay --- */
-.start-menu-overlay {
+/* --- NEW: Main Menu Overlay --- */
+.main-menu-overlay {
   position: absolute;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.9);
+  background-color: rgba(0, 0, 0, 0.95); /* Very dark to emphasize contrast */
   display: flex;
   flex-direction: column; 
   align-items: center;
@@ -21,26 +21,46 @@
   text-align: center;
   padding: 20px;
   box-sizing: border-box; 
+  pointer-events: auto; 
 }
 
-.start-menu-overlay h1 {
-  margin: 0 0 20px 0;
-  color: #61dafb;
-  font-size: 2.5rem;
-  text-shadow: 0 0 5px #61dafb, 0 0 10px #61dafb;
+.main-menu-overlay h1 {
+  margin: 0 0 30px 0;
+  color: #61dafb; /* Blue title */
+  font-size: 4rem;
+  text-shadow: 0 0 10px #61dafb, 0 0 20px #61dafb;
 }
 
-.start-menu-overlay p {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  max-width: 400px;
-  margin-bottom: 30px;
+.menu-leaderboard-container {
+    margin-bottom: 40px;
+    width: 90%;
+    max-width: 400px;
 }
 
-.start-menu-overlay p strong {
-  color: #61dafb;
+.menu-leaderboard-container h3 {
+    color: #FFFF00; /* Yellow subheading */
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    text-shadow: 0 0 5px #FFFF00;
 }
-/* --- End Start Menu --- */
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.menu-buttons .restart-button {
+    font-size: 1.5rem;
+    padding: 15px 50px;
+}
+
+/* Specific styling for the table on the menu */
+.score-table.small-table {
+  font-size: 1rem; /* Smaller font for the menu table */
+}
+
+/* --- End Main Menu --- */
 
 
 /* --- In-Game UI Overlay Wrapper --- */
@@ -133,8 +153,8 @@
 /* --- Player Stats Panel --- */
 .player-stats {
   position: absolute;
-  bottom: 10px; /* Moved to bottom-right */
-  right: 10px;
+  top: 80px;
+  left: 10px;
   z-index: 20;
   pointer-events: none; 
 
@@ -167,6 +187,7 @@
 
 
 /* --- game-container (fullscreen background) --- */
+/* Only needed when gameStatus is 'playing' */
 #game-container {
   position: absolute;
   top: 0;
@@ -184,28 +205,113 @@
 }
 
 
-/* Game Over Overlay Style */
+/* --- MODIFIED: Game Over Overlay Style (Now Submission Form) --- */
 .game-over-overlay {
   position: absolute;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.85); /* Slightly darker for submission focus */
   display: flex;
   flex-direction: column; 
   align-items: center;
   justify-content: center;
   z-index: 100; 
   pointer-events: auto; 
+  color: white; /* Ensure text is visible */
 }
 
 .game-over-overlay h2 {
   color: #FF0000;
   font-size: 4rem;
   text-shadow: 0 0 10px #FF0000, 0 0 20px #FF0000;
-  margin-bottom: 20px;
+  margin-bottom: 10px; /* Reduced margin */
+}
+
+.game-over-overlay .final-score-text {
+    font-size: 1.5rem;
+    color: #FFFF00;
+    margin-bottom: 20px;
+}
+
+.score-submission-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.score-submission-form input {
+    padding: 10px;
+    font-size: 1.2rem;
+    background-color: #1a1a2e;
+    color: #61dafb;
+    border: 2px solid #61dafb;
+    border-radius: 5px;
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    width: 250px;
+}
+
+.score-submission-form .restart-button {
+    font-size: 1.2rem;
+    padding: 10px 20px;
 }
 
 .controls-text { display: none; }
+/* --- END MODIFIED: Game Over Overlay --- */
+
+
+/* --- NEW: Leaderboard Overlay Style --- */
+.leaderboard-overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 600; 
+  color: white;
+  pointer-events: auto; 
+}
+
+.leaderboard-overlay h2 {
+  color: #00ff00; /* Green for success/high score */
+  font-size: 3.5rem;
+  text-shadow: 0 0 10px #00ff00;
+  margin-bottom: 30px;
+}
+
+.score-table {
+  width: 80%;
+  max-width: 500px;
+  border-collapse: collapse;
+  background: rgba(26, 26, 46, 0.8);
+  border: 2px solid #61dafb;
+  box-shadow: 0 0 15px rgba(97, 218, 251, 0.5);
+  font-size: 1.2rem;
+}
+
+.score-table th, .score-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(97, 218, 251, 0.3);
+}
+
+.score-table th {
+  background-color: #61dafb;
+  color: #1a1a2e;
+  text-transform: uppercase;
+}
+
+.score-table tbody tr:nth-child(1) {
+    color: #FFFF00; /* Gold for first place */
+    font-size: 1.4rem;
+    text-shadow: 0 0 5px #FFFF00;
+}
+/* --- END NEW: Leaderboard Overlay --- */
 
 
 /* --- UPDATED: Upgrade Overlay --- */
@@ -365,7 +471,31 @@
   pointer-events: auto; 
 }
 
+/* New Button Style */
+.restart-button-pause {
+  padding: 12px 24px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  background-color: #fb6161;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-family: 'Share Tech Mono', monospace;
+  font-weight: bold;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px #61dafb;
+  pointer-events: auto; 
+}
+
 .restart-button:hover {
+  background-color: #ffffff;
+  color: #0f0c29;
+  box-shadow: 0 0 20px #ffffff;
+  transform: scale(1.05);
+}
+
+.restart-button-pause:hover {
   background-color: #ffffff;
   color: #0f0c29;
   box-shadow: 0 0 20px #ffffff;
@@ -458,6 +588,18 @@
 
 /* --- UPDATED: Targets portrait phones (<= 600px wide) --- */
 @media (max-width: 600px) {
+  /* Main Menu Adjustments */
+  .main-menu-overlay h1 {
+    font-size: 3rem;
+  }
+  .menu-buttons .restart-button {
+      font-size: 1.2rem;
+      padding: 12px 30px;
+  }
+  .menu-leaderboard-container {
+      margin-bottom: 30px;
+  }
+  
   .game-stats {
     /* Make top bar font smaller and stack more cleanly */
     font-size: 1.0rem;
@@ -481,6 +623,16 @@
     width: 80px;
     height: 10px;
   }
+  
+  /* Leaderboard table size on mobile */
+  .score-table {
+      width: 95%;
+      font-size: 1rem;
+  }
+  .score-table th, .score-table td {
+      padding: 8px;
+  }
+
 
   .upgrade-overlay h2 {
     font-size: 2.2rem;
