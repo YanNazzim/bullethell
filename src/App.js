@@ -3,7 +3,7 @@ import './App.css';
 import BulletHellGame from './BulletHellGame'; 
 
 // Default player base speed used by initial game state
-const PLAYER_BASE_SPEED = 200;
+const PLAYER_BASE_SPEED = 150; // --- MATCHED PHASER CONSTANT ---
 
 // --- NEW: Upgrade Card Component ---
 // This makes the UI code cleaner
@@ -40,7 +40,6 @@ function App() {
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const [showUpgradeMenu, setShowUpgradeMenu] = useState(false);
   
-  // --- NEW: State to hold the choices from Phaser ---
   const [upgradeChoices, setUpgradeChoices] = useState([]);
   
   const showUpgradeMenuRef = useRef(false);
@@ -67,8 +66,13 @@ function App() {
     maxHealth: 10,
     isGameOver: false,
     level: 1,
-    moveSpeed: PLAYER_BASE_SPEED, // Added
-    weapons: [] // Added
+    moveSpeed: PLAYER_BASE_SPEED,
+    weapons: [],
+    // --- NEW STATS ---
+    playerBaseDamage: 0,
+    critChance: 0,
+    critDamage: 1.5,
+    bulletBounces: 0
   });
 
   const handleGameUpdate = useCallback((data) => {
@@ -88,7 +92,12 @@ function App() {
             health: data.health,
             maxHealth: data.maxHealth,
             moveSpeed: data.moveSpeed,
-            weapons: data.weapons // Get the new weapon list
+            weapons: data.weapons,
+            // --- NEW STATS ---
+            playerBaseDamage: data.playerBaseDamage,
+            critChance: data.critChance,
+            critDamage: data.critDamage,
+            bulletBounces: data.bulletBounces
           };
         default:
           return prevState;
@@ -96,33 +105,30 @@ function App() {
     });
   }, []);
 
-  // --- UPDATED: Receives choices from Phaser ---
   const handleShowUpgrade = useCallback((choices) => {
     console.log("[App.js] handleShowUpgrade: Received choices from Phaser:", choices);
-    setUpgradeChoices(choices); // <-- Set the choices
+    setUpgradeChoices(choices); 
     setIsPaused(true);
     setShowUpgradeMenu(true);
   }, []); 
 
-  // --- UPDATED: Passes the entire choice object back to Phaser ---
   const handleUpgradeChoice = (choice) => {
     console.log(`[App.js] handleUpgradeChoice: Chose:`, choice);
     if (gameInstanceRef.current && gameInstanceRef.current.game) {
       const scene = gameInstanceRef.current.game.scene.getScene('MainScene');
       if (scene) {
-        scene.applyUpgrade(choice); // <-- Pass the object
+        scene.applyUpgrade(choice); 
       }
     }
     setShowUpgradeMenu(false);
     setIsPaused(false);
-    setUpgradeChoices([]); // Clear choices
+    setUpgradeChoices([]); 
   };
 
   const handleRestart = () => {
     window.location.reload();
   };
   
-  // --- NEW: Helper to find a specific weapon's stats ---
   const getWeaponStat = (key) => {
     return gameState.weapons.find(w => w.key === key);
   }
@@ -148,6 +154,30 @@ function App() {
         <div className="player-stats">
           <div>Level: {gameState.level}</div>
           <div>Move Spd: {gameState.moveSpeed}</div>
+          
+          {/* --- NEW: General Stats --- */}
+          {gameState.playerBaseDamage > 0 && (
+            <div style={{color: '#ff8888'}}>
+              Dmg: +{gameState.playerBaseDamage}
+            </div>
+          )}
+          {gameState.critChance > 0 && (
+            <div style={{color: '#ffaa00'}}>
+              Crit: {(gameState.critChance * 100).toFixed(0)}%
+            </div>
+          )}
+          {/* Show crit damage only if crit chance exists */}
+          {gameState.critChance > 0 && (
+            <div style={{color: '#ffaa00'}}>
+              CritDmg: {(gameState.critDamage * 100).toFixed(0)}%
+            </div>
+          )}
+          {gameState.bulletBounces > 0 && (
+            <div style={{color: '#aaaaff'}}>
+              Bounce: +{gameState.bulletBounces}
+            </div>
+          )}
+          
           <div className="weapon-stats-list">
             {/* Show stats for all acquired weapons */}
             {autoBullet && (
@@ -165,7 +195,6 @@ function App() {
                 Zap Spd: {electricBolt.atkSpeed.toFixed(2)}/s
               </div>
             )}
-            {/* Add other weapons here as you get them */}
             {getWeaponStat('shield') && (
               <div style={{color: '#00aaff'}}>
                 Shield: {getWeaponStat('shield').count} Orb(s)
@@ -189,16 +218,14 @@ function App() {
           </div>
         )}
 
-        {/* --- UPDATED: Upgrade Overlay --- */}
         {showUpgradeMenu && (
           <div className="upgrade-overlay">
             <h2>LEVEL UP!</h2>
             <p>Choose an Upgrade:</p>
             <div className="upgrade-choices">
-              {/* Map over the choices from Phaser */}
-              {upgradeChoices.map((choice) => (
+              {upgradeChoices.map((choice, index) => (
                 <UpgradeCard 
-                  key={choice.key} 
+                  key={choice.key + index} // Use index in key to prevent rare duplicates
                   choice={choice} 
                   onSelect={handleUpgradeChoice}
                 />
@@ -228,7 +255,7 @@ function App() {
           onUpdate={handleGameUpdate} 
           isPaused={isPaused}
           onTogglePause={togglePause}
-          onShowUpgrade={handleShowUpgrade} // <-- This is now critical
+          onShowUpgrade={handleShowUpgrade} 
         />
       </div>
     </div>

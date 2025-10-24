@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import VirtualJoystickPlugin from 'phaser3-rex-plugins/plugins/virtualjoystick-plugin.js';
 
 // --- CONFIGURATION CONSTANTS ---
-const PLAYER_BASE_SPEED = 150; // --- CHANGED: This is now the base speed
+const PLAYER_BASE_SPEED = 150; 
 const PLAYER_HEALTH = 10;
 
 const BULLET_SPEED = 450;
@@ -21,8 +21,7 @@ const MAX_ENEMIES = 150;
 const MAP_WIDTH = 5000; 
 const MAP_HEIGHT = 5000;
 
-// --- NEW: STAT UPGRADE DATABASE ---
-// Defines base player stat upgrades
+// --- UPDATED: STAT UPGRADE DATABASE ---
 const STAT_UPGRADE_DB = {
     'health': {
         name: 'Max Health',
@@ -40,32 +39,63 @@ const STAT_UPGRADE_DB = {
         apply: (scene) => {
             scene.playerSpeed += 10;
         }
+    },
+    // --- NEW: Player Damage ---
+    'playerDamage': {
+        name: 'Base Damage',
+        description: 'Increases all damage dealt by 1.',
+        image: 'assets/icon_bullet.png', // Re-using image, recommend 'icon_damage.png'
+        apply: (scene) => {
+            scene.playerBaseDamage += 1;
+        }
+    },
+    // --- NEW: Crit Chance ---
+    'critChance': {
+        name: 'Crit Chance',
+        description: 'Gain 5% chance to deal critical damage.',
+        image: 'assets/icon_bullet.png', // Re-using, recommend 'icon_crit.png'
+        maxLevel: 20, // 100% cap
+        apply: (scene) => {
+            scene.playerCritChance = Math.min(1.0, scene.playerCritChance + 0.05);
+        }
+    },
+    // --- NEW: Crit Damage ---
+    'critDamage': {
+        name: 'Crit Damage',
+        description: 'Increases critical damage multiplier by 50%.',
+        image: 'assets/icon_bullet.png', // Re-using, recommend 'icon_crit_dmg.png'
+        apply: (scene) => {
+            scene.playerCritDamage += 0.5;
+        }
+    },
+    // --- NEW: Bullet Bounce ---
+    'bulletBounce': {
+        name: 'Bullet Bounce',
+        description: 'Your bullets bounce to 1 additional enemy.',
+        image: 'assets/icon_bullet.png', // Re-using, recommend 'icon_bounce.png'
+        apply: (scene) => {
+            scene.bulletBounces += 1;
+        }
     }
 };
 
-// --- NEW: WEAPON DATABASE ---
-// This is the new scalable system for all weapons.
+// --- WEAPON DATABASE ---
 const WEAPON_DB = {
     'autoBullet': {
         name: 'Auto-Bullet',
         description: 'Fires projectiles at the nearest enemy.',
-        image: 'assets/icon_bullet.png',
+        image: 'assets/laser.png',
         maxLevel: 10,
-        // How to apply an upgrade for *this specific weapon*
         upgrade: (scene, weaponState) => {
-            // Alternates between damage and attack speed
             if (weaponState.level % 2 === 0) {
-                // ATK SPEED UPGRADE
                 weaponState.atkSpeed += 0.2;
                 scene.autoFireEvent.delay = 1000 / weaponState.atkSpeed;
             } else {
-                // DAMAGE UPGRADE
                 weaponState.damage += 0.5;
             }
         },
-        // How to update the weapon's stats in the scene
         sync: (scene, weaponState) => {
-            scene.playerDamage = weaponState.damage; // Link scene damage to this weapon
+            scene.playerWeaponDamage = weaponState.damage; // Link scene damage to this weapon
         }
     },
     'electricBolt': {
@@ -73,10 +103,8 @@ const WEAPON_DB = {
         description: 'Zaps nearby enemies. Upgrades reduce cooldown.',
         image: 'assets/icon_bolt.png',
         maxLevel: 8,
-        // How to set up the weapon when first acquired
         acquire: (scene, weaponState) => {
-            weaponState.delay = 1000; // 1 second base delay
-            
+            weaponState.delay = 1000; 
             scene.electricBoltEvent = scene.time.addEvent({
                 delay: weaponState.delay,
                 callback: scene.zapEnemies,
@@ -85,10 +113,9 @@ const WEAPON_DB = {
                 paused: scene.physics.world.isPaused 
             });
         },
-        // How to apply an upgrade
         upgrade: (scene, weaponState) => {
-            const reduction = 50; // -50ms per level
-            const minDelay = 200; // Cap at 5 zaps/second
+            const reduction = 50; 
+            const minDelay = 200; 
             weaponState.delay = Math.max(minDelay, weaponState.delay - reduction);
             if (scene.electricBoltEvent) {
                 scene.electricBoltEvent.delay = weaponState.delay;
@@ -102,46 +129,39 @@ const WEAPON_DB = {
         maxLevel: 6,
         acquire: (scene, weaponState) => {
             weaponState.damage = 3;
-            weaponState.count = 1; // Start with 1 orb
-            weaponState.radius = 150; // How far from player
-            weaponState.speed = 0.02; // How fast it spins
-            weaponState.angle = 0; // Current spin angle
+            weaponState.count = 1; 
+            weaponState.radius = 215; 
+            weaponState.speed = 0.02; 
+            weaponState.angle = 0; 
             
-            // Create a group for the orbs
             scene.shieldOrbs = scene.physics.add.group({
-                key: 'exp_orb', // We'll reuse the star sprite
+                key: 'shield ', 
                 repeat: weaponState.count - 1,
                 setXY: { x: scene.player.x, y: scene.player.y }
             });
             
             scene.shieldOrbs.getChildren().forEach(orb => {
-                orb.setScale(0.4).setTint(0x00aaff); // Make it blue
+                orb.setScale(0.4).setTint(0x00aaff); 
                 orb.body.setCircle(10);
                 orb.body.setAllowGravity(false);
             });
             
-            // Add collider
             scene.shieldCollider = scene.physics.add.overlap(scene.shieldOrbs, scene.enemies, scene.hitEnemyByShield, null, scene);
         },
         upgrade: (scene, weaponState) => {
             if (weaponState.level === 2 || weaponState.level === 4) {
-                // Add another orb
                 weaponState.count++;
                 const newOrb = scene.shieldOrbs.create(scene.player.x, scene.player.y, 'exp_orb');
                 newOrb.setScale(0.4).setTint(0x00aaff);
                 newOrb.body.setCircle(10);
                 newOrb.body.setAllowGravity(false);
             } else {
-                // Increase damage
                 weaponState.damage += 2;
             }
-            // Increase spin speed slightly
             weaponState.speed += 0.01;
         },
-        // This runs every frame in the scene's update loop
         update: (scene, weaponState) => {
             weaponState.angle += weaponState.speed;
-            
             Phaser.Actions.PlaceOnCircle(
                 scene.shieldOrbs.getChildren(),
                 new Phaser.Geom.Circle(scene.player.x, scene.player.y, weaponState.radius),
@@ -154,7 +174,7 @@ const WEAPON_DB = {
 
 // --- PHASER SCENES ---
 
-// FIX: Custom Projectile Class with self-correcting velocity
+// --- UPDATED: Projectile Class ---
 class Projectile extends Phaser.Physics.Arcade.Image {
     constructor(scene, x, y, texture) {
         super(scene, x, y, texture);
@@ -167,9 +187,10 @@ class Projectile extends Phaser.Physics.Arcade.Image {
         this.setData('vy', 0);
         
         this.despawnTimer = null;
+        this.bouncesLeft = 0; // --- NEW: Bounce tracker
+        this.enemiesHit = new Set(); // --- NEW: Prevents hitting same enemy twice
     }
 
-    // Called when the bullet is retrieved from the pool
     fire(x, y, angle) {
         if (this.despawnTimer) {
             this.despawnTimer.remove(false);
@@ -183,6 +204,10 @@ class Projectile extends Phaser.Physics.Arcade.Image {
         this.setActive(true).setVisible(true).setScale(.04);
         this.body.setCircle(500);
 
+        // --- NEW: Set bounces from scene ---
+        this.bouncesLeft = this.scene.bulletBounces;
+        this.enemiesHit.clear();
+
         const vx = Math.cos(angle) * BULLET_SPEED;
         const vy = Math.sin(angle) * BULLET_SPEED;
 
@@ -191,7 +216,7 @@ class Projectile extends Phaser.Physics.Arcade.Image {
         
         this.body.setVelocity(vx, vy);
 
-        this.despawnTimer = this.scene.time.delayedCall(1500, this.disableProjectile, [], this);
+        this.despawnTimer = this.scene.time.delayedCall(2500, this.disableProjectile, [], this);
     }
 
     disableProjectile() {
@@ -209,7 +234,7 @@ class Projectile extends Phaser.Physics.Arcade.Image {
     }
 }
 
-// --- Custom Enemy Class with Health Bar ---
+// --- UPDATED: Enemy Class ---
 class Enemy extends Phaser.Physics.Arcade.Image {
     constructor(scene, x, y, texture) {
         super(scene, x, y, texture);
@@ -247,7 +272,8 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         this.drawHealthBar();
     }
     
-    takeDamage(amount) {
+    // --- UPDATED: takeDamage now handles crit display ---
+    takeDamage(amount, isCrit = false) {
         if (!this.active) return false;
         
         const newHealth = this.getData('health') - amount;
@@ -258,7 +284,9 @@ class Enemy extends Phaser.Physics.Arcade.Image {
             return true; // Is dead
         }
         
-        this.setTint(0xffffff);
+        // --- NEW: Crit flash color ---
+        this.setTint(isCrit ? 0xffaa00 : 0xffffff); // Orange for crit, white for normal
+        
         this.scene.time.delayedCall(50, () => {
             if (this.active) {
                 if (this.getData('isElite')) {
@@ -324,17 +352,19 @@ class MainScene extends Phaser.Scene {
         
         this.onShowUpgrade = () => {}; 
         
-        // --- NEW: Player Stats (Managed by Scene) ---
+        // --- UPDATED: Player Stats (Managed by Scene) ---
         this.playerHealth = PLAYER_HEALTH;
         this.playerMaxHealth = PLAYER_HEALTH;
-        this.playerDamage = 0; // Will be set by autoBullet
-        this.playerSpeed = PLAYER_BASE_SPEED; // Will be modified by upgrades
+        this.playerWeaponDamage = 0; // Set by autoBullet.sync
+        this.playerBaseDamage = 0; // --- NEW: Upgraded stat
+        this.playerSpeed = PLAYER_BASE_SPEED; 
         this.playerLevel = 1;
+        this.playerCritChance = 0; // --- NEW: Upgraded stat (0.0 to 1.0)
+        this.playerCritDamage = 1.5; // --- NEW: Upgraded stat (1.5 = 150%)
+        this.bulletBounces = 0; // --- NEW: Upgraded stat
         
-        // --- NEW: Player Weapon Inventory ---
         this.playerWeaponInventory = new Map();
         
-        // --- NEW: Weapon Timers/Groups ---
         this.electricBoltEvent = null; 
         this.shieldOrbs = null;
         this.shieldCollider = null;
@@ -356,10 +386,9 @@ class MainScene extends Phaser.Scene {
         this.load.image('space_bg', 'assets/space_bg.png');
         
         this.load.image('enemy', 'assets/smaller_enemy.png');
+        this.load.image('shield', 'assets/icon_shield.png');
         this.load.image('bullet', 'assets/laser.png');
         this.load.image('elite_enemy', 'assets/elite_enemy.png'); 
-        
-        // --- REMOVED: Weapon Pickup Asset ---
     }
 
     create() {
@@ -367,19 +396,21 @@ class MainScene extends Phaser.Scene {
         this.playerLevel = 1;
         this.playerHealth = PLAYER_HEALTH;
         this.playerMaxHealth = PLAYER_HEALTH;
-        this.playerSpeed = PLAYER_BASE_SPEED; // Set base speed
+        this.playerSpeed = PLAYER_BASE_SPEED;
+        
+        // --- NEW: Reset all stats ---
+        this.playerBaseDamage = 0;
+        this.playerCritChance = 0;
+        this.playerCritDamage = 1.5;
+        this.bulletBounces = 0;
         
         this.orbsForNextLevel = 5;
         this.nextUpgradeScore = 5;
         
-        // --- NEW: Initialize Player Inventory ---
         this.playerWeaponInventory.clear();
-        // Give the player the default weapon at level 1
-        const defaultWeaponState = { level: 1, damage: 2, atkSpeed: 2 }; // Base stats
+        const defaultWeaponState = { level: 1, damage: 2, atkSpeed: 2 }; 
         this.playerWeaponInventory.set('autoBullet', defaultWeaponState);
-        // Sync stats with the scene
         WEAPON_DB.autoBullet.sync(this, defaultWeaponState);
-        // --- END NEW ---
         
         this.isGameOver = false;
 
@@ -473,9 +504,6 @@ class MainScene extends Phaser.Scene {
         this.expOrbs = this.physics.add.group();
         this.physics.add.overlap(this.player, this.expOrbs, this.collectOrb, null, this);
         
-        // --- REMOVED: Weapon Pickup Group and Overlap ---
-
-        // --- UPDATED: Auto-fire setup from inventory state ---
         const autoFireState = this.playerWeaponInventory.get('autoBullet');
         this.autoFireEvent = this.time.addEvent({
             delay: 1000 / autoFireState.atkSpeed,
@@ -484,8 +512,6 @@ class MainScene extends Phaser.Scene {
             loop: true
         });
         
-        // --- REMOVED: Electric Bolt Timer (will be created on acquire) ---
-
         this.time.addEvent({
             delay: ENEMY_SPAWN_RATE_MS,
             callback: this.spawnWave,
@@ -493,15 +519,14 @@ class MainScene extends Phaser.Scene {
             loop: true
         });
 
-        // --- NEW: Initial stat send to React ---
         this.sendFullStats();
         this.onUpdate({ type: 'score', value: this.score });
 
         console.log("Phaser Game Created. New Weapon System Initialized.");
     }
     
+    // --- UPDATED: sendFullStats ---
     sendFullStats() {
-        // --- NEW: Build a clean list of weapons for React ---
         const weaponsForReact = [];
         for (const [key, state] of this.playerWeaponInventory.entries()) {
             const dbEntry = WEAPON_DB[key];
@@ -509,7 +534,6 @@ class MainScene extends Phaser.Scene {
                 key: key,
                 name: dbEntry.name,
                 level: state.level,
-                // Add specific stats React might care about
                 ...(key === 'autoBullet' && { 
                     damage: state.damage,
                     atkSpeed: state.atkSpeed 
@@ -524,13 +548,19 @@ class MainScene extends Phaser.Scene {
             });
         }
         
+        // --- NEW: Send all stats ---
         this.onUpdate({
             type: 'fullStats',
             level: this.playerLevel,
             health: this.playerHealth,
             maxHealth: this.playerMaxHealth,
             moveSpeed: this.playerSpeed,
-            weapons: weaponsForReact // Send the new weapon list
+            weapons: weaponsForReact,
+            // --- NEW STATS ---
+            playerBaseDamage: this.playerBaseDamage,
+            critChance: this.playerCritChance,
+            critDamage: this.playerCritDamage,
+            bulletBounces: this.bulletBounces
         });
     }
 
@@ -547,17 +577,12 @@ class MainScene extends Phaser.Scene {
                 if (orb.active) this.physics.moveToObject(orb, this.player, 350);
             });
             
-            // --- REMOVED: Weapon Pickup Magnetism ---
-            
-            // --- NEW: Update all active weapons ---
             for (const [key, state] of this.playerWeaponInventory.entries()) {
                 if (WEAPON_DB[key].update) {
                     WEAPON_DB[key].update(this, state);
                 }
             }
-            // --- END NEW ---
 
-            // Thruster logic
             if (this.player.body.velocity.length() > 0) {
                 const moveAngleRad = Phaser.Math.Angle.Between(0, 0, this.player.body.velocity.x, this.player.body.velocity.y);
                 const thrustAngleRad = moveAngleRad + Math.PI;
@@ -583,7 +608,6 @@ class MainScene extends Phaser.Scene {
         
         this.physics.world.isPaused = shouldPause;
         
-        // Pause all weapon timers
         if (this.autoFireEvent) this.autoFireEvent.paused = shouldPause;
         if (this.electricBoltEvent) this.electricBoltEvent.paused = shouldPause;
 
@@ -594,7 +618,6 @@ class MainScene extends Phaser.Scene {
         console.log(`[Phaser] handlePause: Game Paused = ${shouldPause}`);
     }
 
-    // --- NEW: Centralized Upgrade Logic ---
     applyUpgrade(choice) {
         console.log(`[Phaser] applyUpgrade: Received choice:`, choice);
 
@@ -625,7 +648,6 @@ class MainScene extends Phaser.Scene {
         this.sendFullStats(); // Send all updated stats
     }
     
-    // --- NEW: Acquire Weapon Logic ---
     acquireWeapon(weaponKey) {
         if (!WEAPON_DB[weaponKey] || this.playerWeaponInventory.has(weaponKey)) {
             console.warn(`[Phaser] Cannot acquire weapon: ${weaponKey}`);
@@ -634,17 +656,14 @@ class MainScene extends Phaser.Scene {
         
         console.log(`[Phaser] Acquiring new weapon: ${weaponKey}`);
         
-        // Create the initial state object
         const initialState = { level: 1 };
         this.playerWeaponInventory.set(weaponKey, initialState);
 
-        // Run this weapon's specific 'acquire' function (if it has one)
         if (WEAPON_DB[weaponKey].acquire) {
             WEAPON_DB[weaponKey].acquire(this, initialState);
         }
     }
 
-    // --- NEW: Upgrade Weapon Logic ---
     upgradeWeapon(weaponKey) {
         if (!this.playerWeaponInventory.has(weaponKey)) {
             console.warn(`[Phaser] Cannot upgrade weapon player does not have: ${weaponKey}`);
@@ -656,30 +675,26 @@ class MainScene extends Phaser.Scene {
 
         if (weaponState.level >= dbEntry.maxLevel) {
             console.log(`[Phaser] Weapon ${weaponKey} is already at max level.`);
-            return; // Already max level
+            return; 
         }
 
         weaponState.level++;
         console.log(`[Phaser] Upgrading weapon ${weaponKey} to Level ${weaponState.level}`);
 
-        // Run this weapon's specific 'upgrade' function (if it has one)
         if (dbEntry.upgrade) {
             dbEntry.upgrade(this, weaponState);
         }
         
-        // Run this weapon's 'sync' function to update scene stats
         if (dbEntry.sync) {
             dbEntry.sync(this, weaponState);
         }
     }
-    // --- END NEW LOGIC ---
 
     handlePlayerMovement() {
         this.player.setVelocity(0);
         let velX = 0;
         let velY = 0;
         
-        // --- UPDATED: Use this.playerSpeed ---
         const speed = this.playerSpeed; 
 
         if (this.joystick && this.joystick.force > 0) {
@@ -715,7 +730,8 @@ class MainScene extends Phaser.Scene {
 
     fireBullet() {
         if (this.physics.world.isPaused || this.isGameOver) return;
-        const targetEnemy = this.findNearestEnemy();
+        // --- UPDATED: findNearestEnemy call ---
+        const targetEnemy = this.findNearestEnemy(this.player.x, this.player.y, []);
         if (!targetEnemy) return;
         
         const bullet = this.bullets.get(0, 0); 
@@ -728,7 +744,9 @@ class MainScene extends Phaser.Scene {
         }
     }
 
-    findNearestEnemy() {
+    // --- UPDATED: findNearestEnemy ---
+    // Now finds enemy nearest to (x, y) and can exclude enemies
+    findNearestEnemy(x, y, excludeList = []) {
         const cam = this.cameras.main; 
         const activeEnemies = this.enemies.getChildren().filter(e => e.active);
         if (activeEnemies.length === 0) return null;
@@ -737,9 +755,10 @@ class MainScene extends Phaser.Scene {
         let minDistance = Infinity;
 
         activeEnemies.forEach(enemy => {
-            if (cam.worldView.contains(enemy.x, enemy.y)) {
+            // Check if enemy is in view and NOT in the exclude list
+            if (cam.worldView.contains(enemy.x, enemy.y) && !excludeList.includes(enemy)) {
                 const distance = Phaser.Math.Distance.Between(
-                    this.player.x, this.player.y,
+                    x, y,
                     enemy.x, enemy.y
                 );
                 if (distance < minDistance) {
@@ -765,7 +784,7 @@ class MainScene extends Phaser.Scene {
             let health = ENEMY_BASE_HEALTH * (1 + levelBonus * 0.15); 
             health = Math.max(ENEMY_BASE_HEALTH, Math.floor(health));
             let speed = ENEMY_CHASE_SPEED + levelBonus * 1.5;
-            speed = Math.min(this.playerSpeed, speed); // --- UPDATED: Cap at player's current speed
+            speed = Math.min(this.playerSpeed, speed); 
             
             enemy.spawn(x, y, 'enemy', 0.3, health, speed, ENEMY_DAMAGE_BODY, false);
         }
@@ -838,7 +857,6 @@ class MainScene extends Phaser.Scene {
             if (enemy.healthBar) enemy.healthBar.clear();
         });
         
-        // --- NEW: Clean up weapon systems ---
         if (this.shieldOrbs) this.shieldOrbs.destroy();
         if (this.shieldCollider) this.shieldCollider.destroy();
     }
@@ -882,14 +900,24 @@ class MainScene extends Phaser.Scene {
         }
     }
 
+    // --- HEAVILY UPDATED: hitEnemy (Handles Crit + Bounce) ---
     hitEnemy(bullet, enemy) {
-        if (bullet.disableProjectile) bullet.disableProjectile(); 
-        else bullet.disableBody(true, true);
-        if (!enemy.active) return; 
+        if (!enemy.active || !bullet.active || bullet.enemiesHit.has(enemy)) {
+             // Don't hit inactive enemies or the same enemy twice on one bounce chain
+            return;
+        } 
+        
+        bullet.enemiesHit.add(enemy); // Mark this enemy as hit
 
-        // --- UPDATED: Get damage from player scene, not inventory (it's synced) ---
-        const isDead = enemy.takeDamage(this.playerDamage); 
+        // 1. Calculate Damage (Crit)
+        const baseDmg = this.playerWeaponDamage + this.playerBaseDamage;
+        const isCrit = Math.random() < this.playerCritChance;
+        const finalDmg = isCrit ? baseDmg * this.playerCritDamage : baseDmg;
+        
+        // 2. Apply Damage
+        const isDead = enemy.takeDamage(finalDmg, isCrit); 
 
+        // 3. Handle Orb Drop
         if (isDead) {
             const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
             if (orb) {
@@ -901,24 +929,48 @@ class MainScene extends Phaser.Scene {
                     if(orb.active) orb.disableBody(true, true);
                 });
             }
+        }
+        
+        // 4. Handle Bouncing
+        if (bullet.bouncesLeft > 0) {
+            bullet.bouncesLeft--;
             
-            // --- REMOVED: Weapon Pickup Drop ---
+            // Find a new target, excluding the one just hit
+            const nextTarget = this.findNearestEnemy(bullet.x, bullet.y, Array.from(bullet.enemiesHit));
+            
+            if (nextTarget) {
+                // Fire at the new target
+                const angle = Phaser.Math.Angle.Between(bullet.x, bullet.y, nextTarget.x, nextTarget.y);
+                bullet.setRotation(angle);
+                const vx = Math.cos(angle) * BULLET_SPEED;
+                const vy = Math.sin(angle) * BULLET_SPEED;
+                bullet.setData('vx', vx);
+                bullet.setData('vy', vy);
+                bullet.body.setVelocity(vx, vy);
+            } else {
+                // No more targets, disable bullet
+                bullet.disableProjectile();
+            }
+        } else {
+            // No bounces left, disable bullet
+            bullet.disableProjectile();
         }
     }
     
-    // --- NEW: Shield-specific hit logic ---
     hitEnemyByShield(shieldOrb, enemy) {
         if (!enemy.active) return;
         
         const shieldState = this.playerWeaponInventory.get('shield');
         if (!shieldState) return;
 
-        // Apply shield damage
-        // We add a short cooldown per-enemy to prevent instant-kills
         if (!enemy.shieldHitCooldown) {
-            enemy.takeDamage(shieldState.damage);
+            // --- NEW: Shield can now crit! ---
+            const baseDmg = shieldState.damage + this.playerBaseDamage;
+            const isCrit = Math.random() < this.playerCritChance;
+            const finalDmg = isCrit ? baseDmg * this.playerCritDamage : baseDmg;
             
-            // Set cooldown on the enemy
+            enemy.takeDamage(finalDmg, isCrit);
+            
             enemy.shieldHitCooldown = true;
             this.time.delayedCall(250, () => {
                 if (enemy) enemy.shieldHitCooldown = false;
@@ -926,24 +978,23 @@ class MainScene extends Phaser.Scene {
         }
     }
     
-    // --- UPDATED: Level Up Logic ---
     enterUpgradeState() {
         this.playerLevel++;
         this.orbsForNextLevel++;
         
         const choices = this.generateUpgradeChoices();
         
-        this.onShowUpgrade(choices); // --- NEW: Pass choices to React
+        this.onShowUpgrade(choices); 
         this.setInvulnerable(this.player, -1); 
         
         console.log(`[Phaser] enterUpgradeState: Player is Level ${this.playerLevel}. Sending choices:`, choices);
     }
     
-    // --- NEW: Upgrade Choice Generation ---
+    // --- UPDATED: Upgrade Choice Generation ---
     generateUpgradeChoices() {
         let choices = [];
         
-        // --- 1. Get New Weapon Options ---
+        // 1. Get New Weapon Options
         const availableNewWeapons = [];
         for (const key in WEAPON_DB) {
             if (key !== 'autoBullet' && !this.playerWeaponInventory.has(key)) {
@@ -951,7 +1002,7 @@ class MainScene extends Phaser.Scene {
             }
         }
         
-        // --- 2. Get Weapon Upgrade Options ---
+        // 2. Get Weapon Upgrade Options
         const availableWeaponUpgrades = [];
         for (const [key, state] of this.playerWeaponInventory.entries()) {
             if (state.level < WEAPON_DB[key].maxLevel) {
@@ -959,8 +1010,25 @@ class MainScene extends Phaser.Scene {
             }
         }
         
-        // --- 3. Get Stat Upgrade Options ---
-        const availableStatUpgrades = Object.keys(STAT_UPGRADE_DB);
+        // 3. Get Stat Upgrade Options
+        let availableStatUpgrades = [];
+        for (const key in STAT_UPGRADE_DB) {
+            // --- NEW: Logic to hide CritDamage if CritChance is 0 ---
+            if (key === 'critDamage' && this.playerCritChance === 0) {
+                continue; // Skip this upgrade
+            }
+
+            // Check max level for stats that have one
+            if (STAT_UPGRADE_DB[key].maxLevel) {
+                 // Need to track stat levels. Let's assume we need a tracker for this.
+                 // For now, let's just use critChance's level
+                 if (key === 'critChance' && this.playerCritChance >= (STAT_UPGRADE_DB[key].maxLevel * 0.05)) {
+                     continue; // Skip if max level
+                 }
+            }
+
+            availableStatUpgrades.push(key);
+        }
         
         
         // --- Build Final List (Max 3) ---
@@ -979,17 +1047,20 @@ class MainScene extends Phaser.Scene {
             });
         }
         
-        // Box 2: Stat Upgrade (always available)
-        const chosenStatKey = Phaser.Math.RND.pick(availableStatUpgrades);
-        const dbStat = STAT_UPGRADE_DB[chosenStatKey];
-        choices.push({
-            type: 'stat',
-            key: chosenStatKey,
-            name: dbStat.name,
-            description: dbStat.description,
-            image: dbStat.image,
-            level: 'N/A'
-        });
+        // Box 2: Stat Upgrade (if available)
+        if (availableStatUpgrades.length > 0) {
+            const chosenStatKey = Phaser.Math.RND.pick(availableStatUpgrades);
+            const dbStat = STAT_UPGRADE_DB[chosenStatKey];
+            choices.push({
+                type: 'stat',
+                key: chosenStatKey,
+                name: dbStat.name,
+                description: dbStat.description,
+                image: dbStat.image,
+                level: 'N/A' // todo: could show level for stats
+            });
+        }
+
 
         // Box 3: Weapon Upgrade (if available)
         if (availableWeaponUpgrades.length > 0) {
@@ -1005,8 +1076,29 @@ class MainScene extends Phaser.Scene {
                 level: state.level + 1
             });
         }
+
+        // --- Handle cases with fewer than 3 options ---
+        // If we still have 0 or 1 choices, pad with more stat upgrades
+        while(choices.length < 3 && availableStatUpgrades.length > 0) {
+             const chosenStatKey = Phaser.Math.RND.pick(availableStatUpgrades);
+             // Avoid duplicates
+             if (choices.find(c => c.key === chosenStatKey)) {
+                 availableStatUpgrades = availableStatUpgrades.filter(s => s !== chosenStatKey);
+                 if(availableStatUpgrades.length === 0) break;
+                 continue;
+             }
+             
+             const dbStat = STAT_UPGRADE_DB[chosenStatKey];
+             choices.push({
+                type: 'stat',
+                key: chosenStatKey,
+                name: dbStat.name,
+                description: dbStat.description,
+                image: dbStat.image,
+                level: 'N/A'
+             });
+        }
         
-        // --- Shuffle the final list so the order isn't predictable ---
         return Phaser.Math.RND.shuffle(choices);
     }
 
@@ -1020,8 +1112,6 @@ class MainScene extends Phaser.Scene {
             this.nextUpgradeScore += this.orbsForNextLevel; 
         }
     }
-    
-    // --- REMOVED: collectWeaponPickup ---
     
     drawZapLine(p1, p2, color, duration = 100) {
         const lineGraphics = this.add.graphics();
@@ -1040,25 +1130,25 @@ class MainScene extends Phaser.Scene {
         });
     }
 
+    // --- UPDATED: Zap Enemies (FIXED WARNINGS) ---
     zapEnemies() {
-        // --- UPDATED: Check if weapon is owned ---
         if (this.physics.world.isPaused || this.isGameOver || !this.playerWeaponInventory.has('electricBolt')) return;
         
         const activeEnemies = this.enemies.getChildren().filter(e => e.active);
         if (activeEnemies.length === 0) return;
 
-        let target = this.findNearestEnemy(); 
+        let target = this.findNearestEnemy(this.player.x, this.player.y, []); 
         if (!target) return;
         
         const zapColor = 0x61dafb;
-        const electricChains = 3; // How many enemies to chain
+        const electricChains = 3; 
         let zappedEnemies = new Set();
         let currentTarget = target;
         let prevTarget = this.player; 
         
-        // --- UPDATED: Get damage from the weapon state ---
-        const autoBulletState = this.playerWeaponInventory.get('autoBullet');
-        const damage = autoBulletState ? autoBulletState.damage : 1; // Use bullet damage
+        const baseDmg = (this.playerWeaponDamage + this.playerBaseDamage) * 0.75; 
+        const isCrit = Math.random() < this.playerCritChance;
+        const finalDmg = isCrit ? baseDmg * this.playerCritDamage : baseDmg;
         
         for (let i = 0; i < electricChains; i++) {
             if (!currentTarget || zappedEnemies.has(currentTarget)) break;
@@ -1068,38 +1158,38 @@ class MainScene extends Phaser.Scene {
             
             zappedEnemies.add(currentTarget);
             
-            const isDead = currentTarget.takeDamage(damage); 
+            const isDead = currentTarget.takeDamage(finalDmg, isCrit); 
             const zappedEnemy = currentTarget; 
             
-            zappedEnemy.setTint(zapColor);
-            this.time.delayedCall(50, () => {
-                if (zappedEnemy.active) {
+            zappedEnemy.setTint(isCrit ? 0xffaa00 : zapColor);
+            this.time.delayedCall(50, () => { 
+                if (zappedEnemy.active) { 
                     if (zappedEnemy.getData('isElite')) zappedEnemy.setTint(0xff0000); 
                     else zappedEnemy.clearTint(); 
                 }
             });
 
+            // --- FIX 1: Added 'isDead' check to spawn orb ---
             if (isDead) {
-                let nextTargetIfDead = null;
-                let minDistance = Infinity;
-                for (let k = 0; k < activeEnemies.length; k++) {
-                    const enemy = activeEnemies[k];
-                    if (enemy.active && !zappedEnemies.has(enemy)) { 
-                        const distance = Phaser.Math.Distance.Between(zappedEnemy.x, zappedEnemy.y, enemy.x, enemy.y);
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            nextTargetIfDead = enemy;
-                        }
-                    }
+                const orb = this.expOrbs.get(zappedEnemy.x, zappedEnemy.y, 'exp_orb');
+                if (orb) {
+                    orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
+                    orb.body.setCircle(8); 
+                    orb.body.enable = true;
+                    orb.body.moves = true;
+                    this.time.delayedCall(5000, () => {
+                        if(orb.active) orb.disableBody(true, true);
+                    });
                 }
-                currentTarget = nextTargetIfDead;
-                continue;
             }
+            // --- END FIX 1 ---
 
+            // Find next target
             let nextTarget = null;
             let minDistance = Infinity;
-            for (let k = 0; k < activeEnemies.length; k++) {
-                const enemy = activeEnemies[k];
+            
+            // --- FIX 2: Replaced 'forEach' with 'for...of' loop ---
+            for (const enemy of activeEnemies) {
                 if (enemy.active && !zappedEnemies.has(enemy)) { 
                     const distance = Phaser.Math.Distance.Between(currentTarget.x, currentTarget.y, enemy.x, enemy.y);
                     if (distance < minDistance) {
@@ -1108,6 +1198,8 @@ class MainScene extends Phaser.Scene {
                     }
                 }
             }
+            // --- END FIX 2 ---
+            
             currentTarget = nextTarget;
         }
     }
@@ -1158,7 +1250,7 @@ const BulletHellGame = React.forwardRef(({ onUpdate, isPaused, onTogglePause, on
         game.scene.start('MainScene', { 
             onUpdate: onUpdate || (() => {}),
             onTogglePause: onTogglePause || (() => {}),
-            onShowUpgrade: onShowUpgrade || (() => {}) // Pass this down
+            onShowUpgrade: onShowUpgrade || (() => {}) 
         });
 
         return () => {

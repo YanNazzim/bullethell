@@ -78,10 +78,10 @@
   box-sizing: border-box; 
 }
 
-/* --- UPDATED: Player Stats Panel --- */
+/* --- Player Stats Panel --- */
 .player-stats {
   position: absolute;
-  top: 10px;
+  bottom: 10px; /* Moved to bottom-right */
   right: 10px;
   z-index: 20;
   pointer-events: none; 
@@ -101,7 +101,7 @@
   min-width: 150px; /* Give it some space */
 }
 
-/* --- NEW: Weapon Stats List --- */
+/* --- Weapon Stats List --- */
 .weapon-stats-list {
   margin-top: 8px;
   padding-top: 8px;
@@ -174,10 +174,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start; /* --- CHANGED: Aligns header to top --- */
   z-index: 500; 
   color: white;
   pointer-events: auto; 
+  overflow-y: auto; /* Allow scrolling if needed */
+  padding: 30px 10px 10px 10px; /* --- CHANGED: Ensures top padding --- */
+  box-sizing: border-box;
 }
 
 .upgrade-overlay h2 {
@@ -196,13 +199,15 @@
 .upgrade-choices {
   display: flex;
   flex-direction: row; /* Horizontal boxes */
-  flex-wrap: wrap; /* Allow wrapping on small screens */
+  flex-wrap: nowrap; /* --- CHANGED: Prevents wrapping by default --- */
   justify-content: center;
   gap: 30px;
   margin-top: 20px;
+  width: 100%;
+  max-width: 750px; /* (220*3) + (30*2) = 720px */
 }
 
-/* --- NEW: Upgrade Card Styling --- */
+/* --- Upgrade Card Styling --- */
 .upgrade-card {
   /* Reset button styles */
   background: rgba(26, 26, 46, 0.9);
@@ -370,4 +375,95 @@
 
 .App-link {
   color: #61dafb;
+}
+
+
+/* --- NEW: Media Queries for Mobile Responsiveness --- */
+
+/* Targets tablets and landscape phones (<= 820px wide) */
+@media (max-width: 820px) {
+  .upgrade-overlay h2 {
+    font-size: 2.5rem; /* Smaller "LEVEL UP!" */
+  }
+
+  .upgrade-choices {
+    gap: 15px; /* Tighter gap */
+    max-width: 100%;
+  }
+
+  /* Make cards smaller so 3 can fit on landscape */
+  .upgrade-card {
+    width: 31%; /* Use percentage */
+    min-height: 260px; /* Smaller height */
+    padding: 15px;
+    box-sizing: border-box;
+  }
+  .upgrade-card h3 {
+    font-size: 1.3rem;
+  }
+  .upgrade-card img {
+    width: 50px;
+    height: 50px;
+  }
+  .upgrade-card p {
+    font-size: 0.9rem;
+  }
+}
+
+
+/* --- UPDATED: Targets portrait phones (<= 600px wide) --- */
+@media (max-width: 600px) {
+  .game-stats {
+    /* Make top bar font smaller and stack more cleanly */
+    font-size: 1.0rem;
+    gap: 10px;
+    padding: 8px;
+  }
+   .player-stats {
+    /* Make stats font smaller */
+     font-size: 0.9rem;
+     gap: 5px;
+     padding: 8px;
+     min-width: 120px;
+   }
+
+  .upgrade-overlay h2 {
+    font-size: 2.2rem;
+    margin-bottom: 15px; /* Added margin */
+  }
+  .upgrade-overlay p {
+    font-size: 1.0rem;
+    margin-bottom: 15px; /* Reduced margin */
+  }
+
+  .upgrade-choices {
+    gap: 5px; /* --- CHANGED: Tighter gap --- */
+    width: 100%; 
+  }
+
+  /* --- REPLACED: This block forces 3-across --- */
+  .upgrade-card {
+    width: 32%; /* --- CHANGED: Forces 3-across --- */
+    min-height: auto; /* Let content decide height */
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  .upgrade-card h3 {
+    font-size: 1.0rem; /* Smaller text */
+    margin-bottom: 8px;
+  }
+  .upgrade-card img {
+    width: 40px; /* Smaller image */
+    height: 40px;
+    margin-bottom: 8px;
+  }
+  .upgrade-card p {
+    font-size: 0.8rem; /* Smaller text */
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .upgrade-card .level-badge {
+    font-size: 0.8rem; /* Smaller text */
+    padding: 2px 4px;
+  }
 }
