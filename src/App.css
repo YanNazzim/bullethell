@@ -78,19 +78,19 @@
   box-sizing: border-box; 
 }
 
-/* --- NEW: Player Stats Panel --- */
+/* --- UPDATED: Player Stats Panel --- */
 .player-stats {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 20;
-  pointer-events: none; /* This one isn't clickable */
+  pointer-events: none; 
 
   color: white;
   display: flex;
-  flex-direction: column; /* Stack stats vertically */
-  align-items: flex-start; /* Left-align text */
-  gap: 8px; /* Space between stats */
+  flex-direction: column; 
+  align-items: flex-start; 
+  gap: 8px;
   font-size: 1.1rem; 
   
   background: rgba(0, 0, 0, 0.3);
@@ -98,6 +98,18 @@
   border-radius: 8px;
   border: 1px solid rgba(97, 218, 251, 0.3);
   box-sizing: border-box; 
+  min-width: 150px; /* Give it some space */
+}
+
+/* --- NEW: Weapon Stats List --- */
+.weapon-stats-list {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px; /* Space between weapon stats */
+  width: 100%;
 }
 /* --- End Player Stats --- */
 
@@ -134,7 +146,7 @@
   height: 100%;
   background-color: rgba(0, 0, 0, 0.7);
   display: flex;
-  flex-direction: column; /* --- CHANGED --- */
+  flex-direction: column; 
   align-items: center;
   justify-content: center;
   z-index: 100; 
@@ -145,20 +157,13 @@
   color: #FF0000;
   font-size: 4rem;
   text-shadow: 0 0 10px #FF0000, 0 0 20px #FF0000;
-  margin-bottom: 20px; /* --- ADDED --- */
+  margin-bottom: 20px;
 }
 
-/* --- REMOVED: Orientation Overlay --- */
+.controls-text { display: none; }
 
 
-/* --- controls-text (restart button area) --- */
-.controls-text {
-  /* This class is no longer used in App.js */
-  display: none; 
-}
-
-
-/* --- Upgrade Overlay --- */
+/* --- UPDATED: Upgrade Overlay --- */
 .upgrade-overlay {
   position: absolute;
   top: 0;
@@ -187,21 +192,83 @@
   margin-bottom: 30px;
 }
 
+/* --- UPDATED: Upgrade Choices --- */
 .upgrade-choices {
   display: flex;
-  flex-direction: column; 
-  gap: 20px;
+  flex-direction: row; /* Horizontal boxes */
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  justify-content: center;
+  gap: 30px;
   margin-top: 20px;
 }
 
-.upgrade-choices .restart-button {
-  font-size: 1.5rem;
-  padding: 15px 30px;
+/* --- NEW: Upgrade Card Styling --- */
+.upgrade-card {
+  /* Reset button styles */
+  background: rgba(26, 26, 46, 0.9);
+  border: 2px solid #61dafb;
+  color: white;
+  padding: 20px;
+  font-family: 'Share Tech Mono', monospace;
+  cursor: pointer;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between; /* Pushes level badge down */
+  
+  width: 220px;
+  min-height: 280px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(97, 218, 251, 0.5), 0 0 20px rgba(97, 218, 251, 0.3);
+  transition: all 0.2s ease-in-out;
+  position: relative;
 }
-/* --- End Upgrade Overlay --- */
+
+.upgrade-card:hover {
+  transform: scale(1.05);
+  background: #1a1a2e;
+  box-shadow: 0 0 15px #61dafb, 0 0 30px #61dafb;
+}
+
+.upgrade-card h3 {
+  font-size: 1.4rem;
+  color: #FFFF00; /* Match title */
+  text-shadow: 0 0 5px #FFFF00;
+  margin: 0 0 15px 0;
+  text-align: center;
+}
+
+.upgrade-card img {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 15px;
+  object-fit: contain;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+}
+
+.upgrade-card p {
+  font-size: 0.95rem;
+  text-align: center;
+  line-height: 1.4;
+  margin-bottom: 15px;
+  color: #f0f0f0;
+  flex-grow: 1; /* Makes description fill space */
+}
+
+.upgrade-card .level-badge {
+  font-size: 1rem;
+  font-weight: bold;
+  background: #61dafb;
+  color: #1a1a2e;
+  padding: 4px 10px;
+  border-radius: 5px;
+}
+/* --- End Upgrade Card --- */
 
 
-/* --- NEW: Pause Menu Overlay --- */
+/* --- Pause Menu Overlay --- */
 .pause-menu-overlay {
   position: absolute;
   width: 100%;
@@ -271,12 +338,11 @@
   box-shadow: 0 0 10px #61dafb;
   pointer-events: auto; 
   
-  /* --- NEW: For centering icon --- */
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 38px; /* Set a min-width */
-  min-height: 38px; /* Set a min-height */
+  min-width: 38px;
+  min-height: 38px;
   box-sizing: border-box;
 }
 
@@ -284,10 +350,9 @@
   background-color: #ffffff;
 }
 
-/* --- NEW: Pause Icon (the "||") --- */
 .pause-icon {
-  width: 14px; /* Total width of icon */
-  height: 16px; /* Total height of icon */
+  width: 14px;
+  height: 16px;
   position: relative;
 }
 .pause-icon::before,
@@ -295,16 +360,12 @@
   content: '';
   position: absolute;
   top: 0;
-  width: 5px; /* Width of the bars */
-  height: 100%; /* Height of the bars */
-  background-color: #1a1a2e; /* Color of the bars */
+  width: 5px;
+  height: 100%;
+  background-color: #1a1a2e;
 }
-.pause-icon::before {
-  left: 0; /* Position of the first bar */
-}
-.pause-icon::after {
-  right: 0; /* Position of the second bar */
-}
+.pause-icon::before { left: 0; }
+.pause-icon::after { right: 0; }
 
 
 .App-link {
