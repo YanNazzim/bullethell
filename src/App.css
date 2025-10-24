@@ -78,6 +78,58 @@
   box-sizing: border-box; 
 }
 
+/* --- NEW: Horizontal Player Health Bar Styling --- */
+.player-health-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #00ff00; /* Default green number/text */
+  font-size: 1.2rem;
+  order: -1; /* Place health before score for better visual flow */
+}
+
+.player-health-bar-container .health-number {
+  color: #00ff00; 
+}
+
+.player-health-bar-container .health-max {
+  color: #FFFFFF; 
+}
+
+.player-health-bar-container.health-low .health-number {
+   color: #FF4444; /* Low health warning color */
+   text-shadow: 0 0 5px #FF0000;
+}
+
+.health-bar-wrapper {
+  width: 120px; /* Fixed width for the bar */
+  height: 12px;
+  background-color: #333333;
+  border: 1px solid #00ff00;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+.player-health-bar-container.health-low .health-bar-wrapper {
+  border: 1px solid #FF4444; 
+  box-shadow: 0 0 5px rgba(255, 0, 0, 0.7);
+}
+
+
+.health-bar-fill {
+  height: 100%;
+  background-color: #00ff00;
+  transition: width 0.3s ease-out, background-color 0.3s ease-out;
+}
+
+.player-health-bar-container.health-low .health-bar-fill {
+   background-color: #FF4444; 
+}
+
+/* REMOVED: .game-stats-health-low class from old implementation */
+
+
 /* --- Player Stats Panel --- */
 .player-stats {
   position: absolute;
@@ -113,13 +165,6 @@
 }
 /* --- End Player Stats --- */
 
-
-.game-stats-health-low {
-  color: #FF4444; /* Bright red for low health */
-  text-shadow: 0 0 5px #FF0000;
-  transform: scale(1.05);
-  transition: all 0.1s ease;
-}
 
 /* --- game-container (fullscreen background) --- */
 #game-container {
@@ -426,6 +471,16 @@
      padding: 8px;
      min-width: 120px;
    }
+
+  /* Adjustments for the Health Bar on small screens */
+  .player-health-bar-container {
+    font-size: 1.0rem;
+    gap: 5px;
+  }
+  .health-bar-wrapper {
+    width: 80px;
+    height: 10px;
+  }
 
   .upgrade-overlay h2 {
     font-size: 2.2rem;

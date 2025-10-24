@@ -17,18 +17,31 @@ const ELITE_ENEMY_HEALTH = 25;
 const ELITE_ENEMY_SPEED = 30;
 const ELITE_ENEMY_DAMAGE = 3;
 
+// --- UPDATED BOOMERANG ENEMY CONSTANTS ---
+const BOOMERANG_ENEMY_HEALTH = 12; // Chunky health
+const BOOMERANG_ENEMY_DAMAGE = 2; 
+const BOOMERANG_ENEMY_CHASE_SPEED = 120; // NEW: Fast chase speed
+
 const MAX_ENEMIES = 150;
+const MAX_BOOMERANG_ENEMIES = 3; 
 const MAP_WIDTH = 5000; 
 const MAP_HEIGHT = 5000;
 
 // --- UPDATED: STAT UPGRADE DATABASE ---
 const STAT_UPGRADE_DB = {
-    'health': {
+    'max_health': {
         name: 'Max Health',
         description: 'Increases maximum health by 1.',
-        image: 'assets/icon_health.png',
+        image: 'assets/icon_max_health.png',
         apply: (scene) => {
             scene.playerMaxHealth += 1;
+        }
+    },
+        'restore_health': {
+        name: 'Max Health',
+        description: 'Fills Health Bar.',
+        image: 'assets/icon_restore_health.png',
+        apply: (scene) => {
             scene.playerHealth = scene.playerMaxHealth; // Full heal
         }
     },
@@ -44,7 +57,7 @@ const STAT_UPGRADE_DB = {
     'playerDamage': {
         name: 'Base Damage',
         description: 'Increases all damage dealt by 1.',
-        image: 'assets/icon_bullet.png', // Re-using image, recommend 'icon_damage.png'
+        image: 'assets/base_dmg.png', // Re-using image, recommend 'icon_damage.png'
         apply: (scene) => {
             scene.playerBaseDamage += 1;
         }
@@ -53,7 +66,7 @@ const STAT_UPGRADE_DB = {
     'critChance': {
         name: 'Crit Chance',
         description: 'Gain 5% chance to deal critical damage.',
-        image: 'assets/icon_bullet.png', // Re-using, recommend 'icon_crit.png'
+        image: 'assets/icon_crit_chance.png', // Re-using, recommend 'icon_crit.png'
         maxLevel: 20, // 100% cap
         apply: (scene) => {
             scene.playerCritChance = Math.min(1.0, scene.playerCritChance + 0.05);
@@ -63,7 +76,7 @@ const STAT_UPGRADE_DB = {
     'critDamage': {
         name: 'Crit Damage',
         description: 'Increases critical damage multiplier by 50%.',
-        image: 'assets/icon_bullet.png', // Re-using, recommend 'icon_crit_dmg.png'
+        image: 'assets/icon_crit_dmg.png', // Re-using, recommend 'icon_crit_dmg.png'
         apply: (scene) => {
             scene.playerCritDamage += 0.5;
         }
@@ -72,7 +85,7 @@ const STAT_UPGRADE_DB = {
     'bulletBounce': {
         name: 'Bullet Bounce',
         description: 'Your bullets bounce to 1 additional enemy.',
-        image: 'assets/icon_bullet.png', // Re-using, recommend 'icon_bounce.png'
+        image: 'assets/icon_bullet_bounce.png', // Re-using, recommend 'icon_bounce.png'
         apply: (scene) => {
             scene.bulletBounces += 1;
         }
@@ -134,15 +147,16 @@ const WEAPON_DB = {
             weaponState.speed = 0.02; 
             weaponState.angle = 0; 
             
+            // FIX 1: Change 'shield ' to 'shield' to match preload key
             scene.shieldOrbs = scene.physics.add.group({
-                key: 'shield ', 
+                key: 'shield', 
                 repeat: weaponState.count - 1,
                 setXY: { x: scene.player.x, y: scene.player.y }
             });
             
             scene.shieldOrbs.getChildren().forEach(orb => {
-                orb.setScale(0.4).setTint(0x00aaff); 
-                orb.body.setCircle(10);
+                orb.setScale(0.1).setTint(0x00aaff); 
+                orb.body.setCircle(50);
                 orb.body.setAllowGravity(false);
             });
             
@@ -151,14 +165,15 @@ const WEAPON_DB = {
         upgrade: (scene, weaponState) => {
             if (weaponState.level === 2 || weaponState.level === 4) {
                 weaponState.count++;
-                const newOrb = scene.shieldOrbs.create(scene.player.x, scene.player.y, 'exp_orb');
-                newOrb.setScale(0.4).setTint(0x00aaff);
-                newOrb.body.setCircle(10);
+                // FIX 2: Change 'exp_orb' to 'shield' to use the correct sprite
+                const newOrb = scene.shieldOrbs.create(scene.player.x, scene.player.y, 'shield');
+                newOrb.setScale(0.1).setTint(0x00aaff);
+                newOrb.body.setCircle(50);
                 newOrb.body.setAllowGravity(false);
             } else {
                 weaponState.damage += 2;
             }
-            weaponState.speed += 0.01;
+            weaponState.speed += 0.005;
         },
         update: (scene, weaponState) => {
             weaponState.angle += weaponState.speed;
@@ -234,13 +249,15 @@ class Projectile extends Phaser.Physics.Arcade.Image {
     }
 }
 
-// --- UPDATED: Enemy Class ---
+// --- UPDATED: Enemy Class (Added armor logic and drawing) ---
 class Enemy extends Phaser.Physics.Arcade.Image {
     constructor(scene, x, y, texture) {
         super(scene, x, y, texture);
         
         this.healthBar = scene.add.graphics();
+        this.armorBar = scene.add.graphics(); // NEW: Armor Bar Graphics
         this.healthBar.setDepth(8); 
+        this.armorBar.setDepth(8); 
     }
 
     spawn(x, y, key, scale, health, speed, damage, isElite) {
@@ -259,25 +276,57 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         this.setData('damage', damage);
         this.setData('isElite', isElite);
         
+        // --- NEW: Armor for Elite Enemies (0.5 max health) ---
+        const maxArmor = isElite ? Math.floor(health * 0.5) : 0;
+        this.setData('armor', maxArmor);
+        this.setData('maxArmor', maxArmor);
+        
+        // --- NEW: Boomerang properties ---
+        this.setData('isBoomerang', key === 'boomerang_enemy');
+        this.setData('angle', 0);
+        
+        // --- UPDATED: Scaling and Tinting ---
         if (isElite) {
             this.setTint(0xff0000);
             this.body.setCircle(250); 
             this.body.setOffset(250, 250); 
             
+        } else if (this.data.get('isBoomerang')) {
+            this.setTint(0xffaa00); // Yellow/Orange tint for easy spotting
+            this.body.setCircle(250);
+            this.body.setOffset(250, 250); 
         } else {
             this.body.setCircle(250); 
             this.body.setOffset(250,250); 
+            this.clearTint();
         }
         
         this.drawHealthBar();
+        this.healthBar.setVisible(true);
+        this.armorBar.setVisible(isElite);
     }
     
-    // --- UPDATED: takeDamage now handles crit display ---
+    // --- UPDATED: takeDamage now handles armor reduction ---
     takeDamage(amount, isCrit = false) {
         if (!this.active) return false;
         
-        const newHealth = this.getData('health') - amount;
-        this.setData('health', newHealth);
+        let remainingDamage = amount;
+        let newHealth = this.getData('health');
+        let newArmor = this.getData('armor');
+        
+        // 1. Damage Armor first (if elite and has armor)
+        if (this.getData('isElite') && newArmor > 0) {
+            const damageToArmor = Math.min(remainingDamage, newArmor);
+            newArmor -= damageToArmor;
+            remainingDamage -= damageToArmor;
+            this.setData('armor', newArmor);
+        }
+
+        // 2. Damage Health
+        if (remainingDamage > 0) {
+            newHealth = newHealth - remainingDamage;
+            this.setData('health', newHealth);
+        }
         
         if (newHealth <= 0) {
             this.kill();
@@ -291,38 +340,66 @@ class Enemy extends Phaser.Physics.Arcade.Image {
             if (this.active) {
                 if (this.getData('isElite')) {
                     this.setTint(0xff0000); 
+                } else if (this.data.get('isBoomerang')) {
+                    this.setTint(0xffaa00);
                 } else {
                     this.clearTint(); 
                 }
             }
         });
         
+        this.drawHealthBar(); // Redraw both bars
+        
         return false; // Is not dead
     }
 
+    // --- UPDATED: Draw Health and Armor Bars (Removed crashing setStrokeStyle) ---
     drawHealthBar() {
         this.healthBar.clear();
+        this.armorBar.clear(); 
         if (!this.active) return;
-        const p = this.getData('health') / this.getData('maxHealth');
+        
+        const pHealth = this.getData('health') / this.getData('maxHealth');
+        const pArmor = this.getData('maxArmor') > 0 ? this.getData('armor') / this.getData('maxArmor') : 0;
+        
         const w = (this.width * this.scaleX);
         const h = 5; 
         const x = this.x - w / 2;
-        const y = this.y - (this.height * this.scaleY) / 2 - (h * 2); 
-        
-        this.healthBar.fillStyle(0x333333);
-        this.healthBar.fillRect(x, y, w, h);
-        this.healthBar.fillStyle(p < 0.3 ? 0xff0000 : 0x00ff00); 
-        this.healthBar.fillRect(x, y, w * p, h);
-    }
+        const yHealth = this.y - (this.height * this.scaleY) / 2 - (h * 2); 
+        const yArmor = yHealth - h - 2; // Above the health bar
 
-    preUpdate(time, delta) {
-        if (this.active) {
-            this.drawHealthBar();
+        // --- Draw Health Bar ---
+        this.healthBar.fillStyle(0x333333);
+        this.healthBar.fillRect(x, yHealth, w, h);
+        this.healthBar.fillStyle(pHealth < 0.3 ? 0xff0000 : 0x00ff00); 
+        this.healthBar.fillRect(x, yHealth, w * pHealth, h);
+        
+        // --- Draw Armor Bar (Elite only) ---
+        if (this.getData('isElite')) {
+             this.armorBar.fillStyle(0x333333); // Background
+             this.armorBar.fillRect(x, yArmor, w, h);
+             
+             // Blue for armor
+             this.armorBar.fillStyle(0x61dafb); 
+             this.armorBar.fillRect(x, yArmor, w * pArmor, h);
+             this.armorBar.setVisible(true);
+             
+             // The method this.setStrokeStyle() is not supported on Phaser.Physics.Arcade.Image.
+             
+        } else {
+            this.armorBar.setVisible(false);
         }
     }
-    
+
+    // --- UPDATED: Kill function to clear all bars and update Boomerang count ---
     kill() {
         this.healthBar.clear(); 
+        this.armorBar.clear(); 
+        
+        if (this.data.get('isBoomerang')) {
+            this.scene.boomerangEnemiesCount = Math.max(0, this.scene.boomerangEnemiesCount - 1);
+        }
+        
         this.disableBody(true, true); 
     }
 }
@@ -371,6 +448,8 @@ class MainScene extends Phaser.Scene {
 
         this.orbsForNextLevel = 5;
         this.nextUpgradeScore = 5;
+        
+        this.boomerangEnemiesCount = 0; // --- NEW: Boomerang Enemy Tracker
     }
     
     init(data) {
@@ -389,6 +468,7 @@ class MainScene extends Phaser.Scene {
         this.load.image('shield', 'assets/icon_shield.png');
         this.load.image('bullet', 'assets/laser.png');
         this.load.image('elite_enemy', 'assets/elite_enemy.png'); 
+        this.load.image('boomerang_enemy', 'assets/boomerang_enemy.png'); // --- NEW: Boomerang enemy placeholder
     }
 
     create() {
@@ -403,7 +483,8 @@ class MainScene extends Phaser.Scene {
         this.playerCritChance = 0;
         this.playerCritDamage = 1.5;
         this.bulletBounces = 0;
-        
+        this.boomerangEnemiesCount = 0; // --- Reset tracker
+
         this.orbsForNextLevel = 5;
         this.nextUpgradeScore = 5;
         
@@ -414,7 +495,12 @@ class MainScene extends Phaser.Scene {
         
         this.isGameOver = false;
 
+        // --- UPDATED: Ensure all sides check collision for boomerang bouncing (Removed for new tracking logic) ---
         this.physics.world.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
+        this.physics.world.checkCollision.down = false; // Disable world collision for tracking enemies
+        this.physics.world.checkCollision.up = false;
+        this.physics.world.checkCollision.left = false;
+        this.physics.world.checkCollision.right = false;
 
         this.background = this.add.image(MAP_WIDTH / 2, MAP_HEIGHT / 2, 'space_bg');
         this.background.displayWidth = MAP_WIDTH;
@@ -570,9 +656,20 @@ class MainScene extends Phaser.Scene {
         this.handlePlayerMovement();
 
         if (!this.physics.world.isPaused) {
+            // --- UPDATED: Enemy movement handler ---
             this.enemies.getChildren().forEach(enemy => {
-                if (enemy.active) this.trackPlayer(enemy);
+                if (enemy.active) {
+                    if (enemy.data.get('isBoomerang')) {
+                        // Boomerang now tracks, but we keep rotation for visual effect
+                        this.trackPlayer(enemy);
+                        enemy.setRotation(enemy.rotation + 0.05); 
+                    } else {
+                        this.trackPlayer(enemy);
+                    }
+                }
             });
+            // --- End Enemy movement handler ---
+            
             this.expOrbs.getChildren().forEach( orb => {
                 if (orb.active) this.physics.moveToObject(orb, this.player, 350);
             });
@@ -600,6 +697,8 @@ class MainScene extends Phaser.Scene {
              if (this.thrusterEmitter.emitting) this.thrusterEmitter.stop();
         }
     }
+    
+    // --- REMOVED: handleBoomerangMovement method is no longer needed/correct ---
     
     handlePause(shouldPause) {
         if (this.isGameOver || this.physics.world.isPaused === shouldPause) {
@@ -786,10 +885,34 @@ class MainScene extends Phaser.Scene {
             let speed = ENEMY_CHASE_SPEED + levelBonus * 1.5;
             speed = Math.min(this.playerSpeed, speed); 
             
+            // Regular enemy scale is 0.3
             enemy.spawn(x, y, 'enemy', 0.3, health, speed, ENEMY_DAMAGE_BODY, false);
         }
     }
     
+    // --- UPDATED: Boomerang Enemy Spawn Function (Now chases player) ---
+    spawnBoomerangEnemy(x, y) {
+        if (this.boomerangEnemiesCount >= MAX_BOOMERANG_ENEMIES) return;
+
+        const enemy = this.enemies.get();
+        if (enemy) {
+            this.boomerangEnemiesCount++;
+            
+            const levelBonus = this.playerLevel - 1;
+            let health = BOOMERANG_ENEMY_HEALTH * (1 + levelBonus * 0.15); 
+            health = Math.max(BOOMERANG_ENEMY_HEALTH, Math.floor(health));
+
+            // Set speed to the new fast chase speed
+            const speed = BOOMERANG_ENEMY_CHASE_SPEED;
+
+            // Regular enemy scale is 0.3
+            enemy.spawn(x, y, 'boomerang_enemy', 0.3, health, speed, BOOMERANG_ENEMY_DAMAGE, false);
+            
+            // Removed bouncing/orbit settings to allow for tracking
+        }
+    }
+    
+    // --- UPDATED: Elite Spawn (10% larger than 0.3 scale) ---
     spawnElite(x, y) {
         const elite = this.enemies.get();
         if (elite) {
@@ -799,10 +922,12 @@ class MainScene extends Phaser.Scene {
             let speed = ELITE_ENEMY_SPEED + levelBonus * 1;
             speed = Math.min(100, speed); 
             
-            elite.spawn(x, y, 'elite_enemy', .2, health, speed, ELITE_ENEMY_DAMAGE, true);
+            // Elite scaling: 0.3 * 1.10 = 0.33
+            elite.spawn(x, y, 'elite_enemy', .33, health, speed, ELITE_ENEMY_DAMAGE, true); 
         }
     }
 
+    // --- UPDATED: Spawn Wave to include Boomerang Enemy ---
     spawnWave() {
         if (this.isGameOver) return;
         if (this.enemies.countActive(true) >= MAX_ENEMIES) return;
@@ -818,6 +943,8 @@ class MainScene extends Phaser.Scene {
         let eliteChance = 0.05 + (this.playerLevel * 0.002);
         eliteChance = Math.min(0.25, eliteChance);
         
+        let boomerangChance = 0.1; // 10% chance to spawn a boomerang enemy if under limit
+
         for (let i = 0; i < waveSize; i++) {
             let x, y;
             do {
@@ -825,9 +952,13 @@ class MainScene extends Phaser.Scene {
                 y = Phaser.Math.Between(0, mapHeight);
             } while (Phaser.Math.Distance.Between(x, y, playerX, playerY) < spawnDistance);
 
-            if (this.playerLevel > 5 && Math.random() < eliteChance) {
+            if (this.playerLevel > 1 && Math.random() < boomerangChance && this.boomerangEnemiesCount < MAX_BOOMERANG_ENEMIES) {
+                this.spawnBoomerangEnemy(x, y);
+            }
+            else if (this.playerLevel > 5 && Math.random() < eliteChance) {
                 this.spawnElite(x, y);
-            } else {
+            } 
+            else {
                 this.spawnRegularEnemy(x, y);
             }
         }
@@ -1130,7 +1261,7 @@ class MainScene extends Phaser.Scene {
         });
     }
 
-    // --- UPDATED: Zap Enemies (FIXED WARNINGS) ---
+    // --- UPDATED: Zap Enemies (Handles armor) ---
     zapEnemies() {
         if (this.physics.world.isPaused || this.isGameOver || !this.playerWeaponInventory.has('electricBolt')) return;
         
@@ -1165,6 +1296,7 @@ class MainScene extends Phaser.Scene {
             this.time.delayedCall(50, () => { 
                 if (zappedEnemy.active) { 
                     if (zappedEnemy.getData('isElite')) zappedEnemy.setTint(0xff0000); 
+                    else if (zappedEnemy.getData('isBoomerang')) zappedEnemy.setTint(0xffaa00);
                     else zappedEnemy.clearTint(); 
                 }
             });

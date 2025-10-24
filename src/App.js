@@ -81,7 +81,8 @@ function App() {
         case 'score':
           return { ...prevState, score: data.value };
         case 'health':
-          return { ...prevState, health: data.value, max: data.max };
+          // Need to handle both health and max health updates
+          return { ...prevState, health: data.value, maxHealth: data.max || prevState.maxHealth };
         case 'gameOver':
           return { ...prevState, isGameOver: data.value };
         case 'fullStats':
@@ -136,15 +137,31 @@ function App() {
   const autoBullet = getWeaponStat('autoBullet');
   const electricBolt = getWeaponStat('electricBolt');
 
+  // Determine low health status for styling
+  const isHealthLow = gameState.health <= (gameState.maxHealth * 0.2);
+
   return (
     <div className="App">
       <div className="game-ui-overlay">
 
         <div className="game-stats">
           <div>SCORE: {gameState.score}</div>
-          <div className={gameState.health <= (gameState.maxHealth * 0.2) ? 'game-stats-health-low' : ''}>
-            HEALTH: {gameState.health} / {gameState.maxHealth}
+          
+          {/* --- MODIFIED: Horizontal Player Health Bar Display --- */}
+          <div className={`player-health-bar-container ${isHealthLow ? 'health-low' : ''}`}>
+            <span className="health-number">HP {gameState.health}</span>
+            <div className="health-bar-wrapper">
+              <div 
+                className="health-bar-fill" 
+                style={{
+                  width: `${(gameState.health / gameState.maxHealth) * 100}%`,
+                }}
+              ></div>
+            </div>
+             <span className="health-max">/ {gameState.maxHealth}</span>
           </div>
+          {/* --- END MODIFIED --- */}
+          
           <button className="pause-button" onClick={togglePause}>
             <div className="pause-icon" />
           </button>
