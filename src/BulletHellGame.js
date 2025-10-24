@@ -249,7 +249,7 @@ class Projectile extends Phaser.Physics.Arcade.Image {
     }
 }
 
-// --- UPDATED: Enemy Class (Added armor logic and drawing) ---
+// --- UPDATED: Enemy Class (Fixed Health Bar Position) ---
 class Enemy extends Phaser.Physics.Arcade.Image {
     constructor(scene, x, y, texture) {
         super(scene, x, y, texture);
@@ -353,7 +353,7 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         return false; // Is not dead
     }
 
-    // --- UPDATED: Draw Health and Armor Bars (Chunkier and Closer) ---
+    // --- UPDATED: Draw Health and Armor Bars (Now uses local offsets) ---
     drawHealthBar() {
         this.healthBar.clear();
         this.armorBar.clear(); 
@@ -364,38 +364,50 @@ class Enemy extends Phaser.Physics.Arcade.Image {
         
         const w = (this.width * this.scaleX);
         const h = 8; // MODIFIED: Increased height from 5 to 8
-        const x = this.x - w / 2;
-        // MODIFIED: Changed offset to (h * 1) to bring it closer to the enemy
-        const yHealth = this.y - (this.height * this.scaleY) / 2 - (h * 1); 
-        const yArmor = yHealth - h - 2; // Above the health bar
-
-        // --- Draw Health Bar ---
-        this.healthBar.fillStyle(0x333333);
-        this.healthBar.fillRect(x, yHealth, w, h);
-        this.healthBar.fillStyle(pHealth < 0.3 ? 0xff0000 : 0x00ff00); 
-        this.healthBar.fillRect(x, yHealth, w * pHealth, h);
         
-        // --- Draw Armor Bar (Elite only) ---
+        // --- FIX: Calculate offsets relative to enemy center (0, 0) of the graphics object ---
+        const offsetX = -w / 2;
+        // The top edge of the bar, relative to the enemy's center (this.y).
+        const offsetYHealth = -(this.height * this.scaleY) / 2 - (h * 1); 
+        const offsetYArmor = offsetYHealth - h - 2; // Above the health bar
+
+        // --- Draw Health Bar (using offsets) ---
+        this.healthBar.fillStyle(0x333333);
+        this.healthBar.fillRect(offsetX, offsetYHealth, w, h);
+        this.healthBar.fillStyle(pHealth < 0.3 ? 0xff0000 : 0x00ff00); 
+        this.healthBar.fillRect(offsetX, offsetYHealth, w * pHealth, h);
+        
+        // --- Draw Armor Bar (Elite only, using offsets) ---
         if (this.getData('isElite')) {
              this.armorBar.fillStyle(0x333333); // Background
-             this.armorBar.fillRect(x, yArmor, w, h);
+             this.armorBar.fillRect(offsetX, offsetYArmor, w, h);
              
              // Blue for armor
              this.armorBar.fillStyle(0x61dafb); 
-             this.armorBar.fillRect(x, yArmor, w * pArmor, h);
+             this.armorBar.fillRect(offsetX, offsetYArmor, w * pArmor, h);
              this.armorBar.setVisible(true);
-             
-             // The method this.setStrokeStyle() is not supported on Phaser.Physics.Arcade.Image.
              
         } else {
             this.armorBar.setVisible(false);
         }
+    }
+    
+    // --- NEW METHOD: Update to reposition the graphics objects every frame ---
+    update() {
+        if (!this.active) return;
+
+        // Reposition the graphics objects to the enemy's current position (Center of the enemy)
+        // This makes the drawing coordinates inside drawHealthBar() relative to this new position.
+        this.healthBar.setPosition(this.x, this.y);
+        this.armorBar.setPosition(this.x, this.y);
     }
 
     // --- UPDATED: Kill function to clear all bars and update Boomerang count ---
     kill() {
         this.healthBar.clear(); 
         this.armorBar.clear(); 
+        this.healthBar.setVisible(false); // FIX: Hide graphic object on death
+        this.armorBar.setVisible(false); // FIX: Hide graphic object on death
         
         if (this.data.get('isBoomerang')) {
             this.scene.boomerangEnemiesCount = Math.max(0, this.scene.boomerangEnemiesCount - 1);
@@ -499,12 +511,13 @@ class MainScene extends Phaser.Scene {
         
         this.isGameOver = false;
 
-        // --- UPDATED: Ensure all sides check collision for boomerang bouncing (Removed for new tracking logic) ---
+        // --- UPDATED: Ensure all sides check collision for boomerang bouncing (Player now collides with world bounds) ---
         this.physics.world.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
-        this.physics.world.checkCollision.down = false; // Disable world collision for tracking enemies
-        this.physics.world.checkCollision.up = false;
-        this.physics.world.checkCollision.left = false;
-        this.physics.world.checkCollision.right = false;
+        // We REMOVED the following lines to enforce world boundaries:
+        // this.physics.world.checkCollision.down = false; 
+        // this.physics.world.checkCollision.up = false;
+        // this.physics.world.checkCollision.left = false;
+        // this.physics.world.checkCollision.right = false;
 
         this.background = this.add.image(MAP_WIDTH / 2, MAP_HEIGHT / 2, 'space_bg');
         this.background.displayWidth = MAP_WIDTH;
@@ -705,6 +718,8 @@ class MainScene extends Phaser.Scene {
                     } else {
                         this.trackPlayer(enemy);
                     }
+                    // Since 'runChildUpdate: true' is set on the enemies group, the Enemy.update()
+                    // method (which now repositions the health bars) is automatically called here.
                 }
             });
             // --- End Enemy movement handler ---
