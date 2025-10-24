@@ -114,7 +114,7 @@ const WEAPON_DB = {
     'electricBolt': {
         name: 'Electric Bolt',
         description: 'Zaps nearby enemies. Upgrades reduce cooldown.',
-        image: 'assets/icon_bolt.png',
+        image: 'assets/icon_bolt.js',
         maxLevel: 8,
         acquire: (scene, weaponState) => {
             weaponState.delay = 1000; 
@@ -537,22 +537,13 @@ class MainScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-P', this.onTogglePause, this);
         this.input.keyboard.on('keydown-ESC', this.onTogglePause, this);
         
+        // --- MODIFIED: Dynamic Joystick Setup (No fixed joystick created here) ---
         if (this.sys.game.device.input.touch) {
-            const joyStickX = this.cameras.main.width / 2;
-            const joyStickY = this.cameras.main.height * 0.95; 
-
-            this.joystick = this.joystickPlugin.add(this, {
-                x: joyStickX,
-                y: joyStickY,
-                radius: 80, 
-                base: this.add.circle(0, 0, 60, 0x888888, 0.3), 
-                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), 
-                dir: '8dir', 
-                forceMin: 16,
-            }).setScrollFactor(0); 
-
-            this.joyStickCursorKeys = this.joystick.createCursorKeys();
+            this.input.on('pointerdown', this.handleTouchDown, this);
+            this.input.on('pointerup', this.handleTouchUp, this);
         }
+        // --- END MODIFIED: Dynamic Joystick Setup ---
+
 
         this.bullets = this.physics.add.group({
             classType: Projectile, 
@@ -613,6 +604,50 @@ class MainScene extends Phaser.Scene {
         this.onUpdate({ type: 'score', value: this.score });
 
         console.log("Phaser Game Created. New Weapon System Initialized.");
+    }
+    
+    // --- MODIFIED: Handles creation and precise placement of the floating joystick ---
+    handleTouchDown(pointer) {
+        // Only trigger if a touch is happening (not during pause/game over)
+        if (this.isGameOver || this.physics.world.isPaused) return;
+
+        // If joystick hasn't been created, create it once.
+        if (!this.joystick) {
+             // Create it far out with a HUGE radius to capture input anywhere on the screen
+             this.joystick = this.joystickPlugin.add(this, {
+                x: -1000, 
+                y: -1000,
+                radius: 5000, // Large radius to cover the entire window
+                base: this.add.circle(0, 0, 60, 0x888888, 0.3), 
+                thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5), 
+                dir: '8dir', 
+                forceMin: 16,
+            }).setScrollFactor(0).setVisible(false); // FIXED: Removed .setDepth(100) from chain
+            
+            // FIXED: Apply setDepth directly to the GameObjects (base and thumb)
+            this.joystick.base.setDepth(100); 
+            this.joystick.thumb.setDepth(100); 
+
+            this.joyStickCursorKeys = this.joystick.createCursorKeys();
+        } 
+        
+        // Now, set the base and thumb position to the EXACT pointer down location.
+        // This is the key to dictating the center by the tap position.
+        this.joystick.base.x = pointer.x;
+        this.joystick.base.y = pointer.y;
+        this.joystick.thumb.x = pointer.x;
+        this.joystick.thumb.y = pointer.y;
+        
+        this.joystick.setVisible(true);
+    }
+    
+    // --- NEW METHOD: Hides the joystick when the player lifts their finger ---
+    handleTouchUp(pointer) {
+        if (this.joystick) {
+            this.joystick.setVisible(false);
+            // Optionally stop player movement immediately on release
+            this.player.setVelocity(0); 
+        }
     }
     
     // --- UPDATED: sendFullStats ---
@@ -800,12 +835,15 @@ class MainScene extends Phaser.Scene {
         
         const speed = this.playerSpeed; 
 
-        if (this.joystick && this.joystick.force > 0) {
-            if (this.joyStickCursorKeys.left.isDown) velX = -speed;
-            else if (this.joyStickCursorKeys.right.isDown) velX = speed;
-            if (this.joyStickCursorKeys.up.isDown) velY = -speed;
-            else if (this.joyStickCursorKeys.down.isDown) velY = speed;
+        // --- MODIFIED: Constant Speed Joystick Logic to prevent crash ---
+        if (this.joystick && this.joystick.visible && this.joystick.force > 0) {
+            const angleRad = Phaser.Math.DegToRad(this.joystick.angle);
+            
+            // Set velocity based on angle and full speed
+            velX = Math.cos(angleRad) * speed;
+            velY = Math.sin(angleRad) * speed;
         }
+        // --- END MODIFIED ---
         else if (this.input.activePointer.isDown && !this.sys.game.device.input.touch) {
             const touchX = this.input.activePointer.worldX;
             const touchY = this.input.activePointer.worldY;
@@ -821,8 +859,17 @@ class MainScene extends Phaser.Scene {
         }
 
         this.player.setVelocity(velX, velY);
-        if (velX !== 0 && velY !== 0 && !(this.input.activePointer.isDown && !this.sys.game.device.input.touch)) {
+        
+        // --- MODIFIED: Keep keyboard/gamepad normalization, but only if not using joystick ---
+        const isKeyboardMove = velX !== 0 && velY !== 0 && !(this.input.activePointer.isDown && !this.sys.game.device.input.touch) && !this.joystick?.visible;
+        
+        if (isKeyboardMove) {
+            // Safe to normalize here as keyboard input guarantees non-zero velocity in diagonal case
             this.player.body.velocity.normalize().scale(speed);
+        } else if (this.joystick && this.joystick.force > 0) {
+             // For joystick, velocity is already set to magnitude 'speed', but normalize one more time 
+             // to handle potential floating point errors and ensure maximum constant speed.
+             this.player.body.velocity.normalize().scale(speed);
         }
         
         if (velX !== 0 || velY !== 0) {
