@@ -177,11 +177,21 @@ const WEAPON_DB = {
         },
         update: (scene, weaponState) => {
             weaponState.angle += weaponState.speed;
+            const circle = new Phaser.Geom.Circle(scene.player.x, scene.player.y, weaponState.radius); // Store circle
             Phaser.Actions.PlaceOnCircle(
                 scene.shieldOrbs.getChildren(),
-                new Phaser.Geom.Circle(scene.player.x, scene.player.y, weaponState.radius),
+                circle,
                 weaponState.angle
             );
+            
+            // --- FIX: Manually sync physics body position with sprite position ---
+            scene.shieldOrbs.getChildren().forEach(orb => {
+                // Manually reset the body position to match the sprite position set by PlaceOnCircle
+                orb.body.reset(orb.x, orb.y);
+                // Set velocity to zero to prevent the body from moving on its own
+                orb.body.setVelocity(0); 
+            });
+            // --- END FIX ---
         }
     }
 };
@@ -1172,7 +1182,19 @@ class MainScene extends Phaser.Scene {
             const isCrit = Math.random() < this.playerCritChance;
             const finalDmg = isCrit ? baseDmg * this.playerCritDamage : baseDmg;
             
-            enemy.takeDamage(finalDmg, isCrit);
+            // The shield orb is correctly checking if the enemy is already dead
+            const isDead = enemy.takeDamage(finalDmg, isCrit);
+            
+            // If the enemy dies, we need to manually drop an orb since hitEnemy (which handles orbs) is not called.
+            if (isDead) {
+                const orb = this.expOrbs.get(enemy.x, enemy.y, 'exp_orb');
+                if (orb) {
+                    orb.setActive(true).setVisible(true).setScale(0.3).setTint(0xFFFF00).setAlpha(1);
+                    orb.body.setCircle(8); 
+                    orb.body.enable = true;
+                    orb.body.moves = true;
+                }
+            }
             
             enemy.shieldHitCooldown = true;
             this.time.delayedCall(250, () => {

@@ -163,7 +163,8 @@ function App() {
             moveSpeed: data.moveSpeed,
             weapons: data.weapons,
             playerBaseDamage: data.playerBaseDamage,
-            critChance: data.playerCritChance,
+            // FIX: Corrected property name from 'data.playerCritChance' to 'data.critChance'
+            critChance: data.critChance, 
             critDamage: data.critDamage,
             bulletBounces: data.bulletBounces
           };
@@ -343,11 +344,13 @@ function App() {
                     Dmg: +{gameState.playerBaseDamage}
                   </div>
                 )}
+                {/* Critical Chance Stat Display */}
                 {gameState.critChance > 0 && (
                   <div style={{color: '#ffaa00'}}>
                     Crit: {(gameState.critChance * 100).toFixed(0)}%
                   </div>
                 )}
+                {/* Critical Damage Stat Display */}
                 {gameState.critChance > 0 && (
                   <div style={{color: '#ffaa00'}}>
                     CritDmg: {(gameState.critDamage * 100).toFixed(0)}%
