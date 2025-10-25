@@ -9,6 +9,7 @@
   /* Fallback color for dark space theme is already in index.css */
 }
 
+
 :root {
     --color-primary: #00ffc8; /* Bright Neon Green/Cyan for main focus */
     --color-secondary: #ff00ff; /* Bright Magenta for accents */
@@ -32,6 +33,66 @@
   height: 100%;
   z-index: 10;
   pointer-events: none;
+}
+
+/* --- NEW: Splash Screen Overlay --- */
+.splash-screen-overlay,
+.loading-overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-background-dark); 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000; /* Highest Z-index */
+    color: white;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+    pointer-events: auto;
+}
+
+.splash-screen-overlay h1 {
+    font-size: 3rem;
+    color: var(--color-secondary);
+    text-shadow: var(--glow-secondary);
+    margin-bottom: 20px;
+}
+
+.splash-screen-overlay p {
+    font-size: 1.2rem;
+    color: #ccc;
+    margin: 5px 0;
+}
+
+.splash-screen-overlay .patch-notes {
+    color: var(--color-primary);
+    text-shadow: var(--glow-primary);
+    font-size: 1.5rem;
+    margin-bottom: 30px;
+}
+
+/* Loading Spinner (minimal) */
+.loading-overlay h1 {
+    color: var(--color-primary);
+    text-shadow: var(--glow-primary);
+}
+
+.loader {
+    border: 8px solid rgba(0, 255, 200, 0.2);
+    border-top: 8px solid var(--color-primary);
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+    margin-top: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* --- NEW: Top Health Bar (All Screens) --- */

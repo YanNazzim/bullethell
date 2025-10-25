@@ -3,7 +3,7 @@ import { BaseScene } from './WaveScene';
 import Phaser from 'phaser';
 import { 
     MAP_WIDTH, MAP_HEIGHT, MAX_CHAOS_ENEMIES, CHAOS_SPAWN_RATE_MS, 
-    MAX_BOOMERANG_ENEMIES, WEAPON_DB // Removed CHAOS_KILLS_TO_LEVEL
+    MAX_BOOMERANG_ENEMIES, WEAPON_DB 
 } from './GameConstants';
 
 // --- CHAOS SCENE (Continuous Gameplay) ---

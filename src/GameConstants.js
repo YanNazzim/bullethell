@@ -30,6 +30,9 @@ export const CHAOS_SPAWN_RATE_MS = 1000; // Initial spawn rate for chaos mode
 
 export const MAX_BOOMERANG_ENEMIES = 3;
 
+// --- NEW CONSTANT: Electric Bolt Damage Bonus ---
+export const ELECTRIC_BOLT_BONUS_DAMAGE = 2;
+
 // --- STAT UPGRADE DATABASE ---
 export const STAT_UPGRADE_DB = {
     'max_health': {

@@ -20,8 +20,40 @@ function formatTime(milliseconds) {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+// --- NEW HELPER: Determine initial state based on launch history ---
+const getInitialStatus = () => {
+    // If the 'hasLaunched' flag is present, start at the main menu.
+    if (localStorage.getItem('hasLaunched') === 'true') {
+        return 'menu';
+    }
+    // Otherwise, start at the splash screen.
+    return 'splash';
+}
+// --- END NEW HELPER ---
 
-// --- MainMenu Component ---
+
+// --- Splash Screen Component (No Change) ---
+function SplashScreen({ onLaunch }) {
+    return (
+        <div className="splash-screen-overlay">
+            <h1>PROTOCOL: BULLET HELL</h1>
+            <p className="patch-notes">[ V1.2.0 - CHAOS MODE ONLINE ]</p>
+            <p>Thank you for testing the latest combat simulation suite.</p>
+            <p>Your previous progress and leaderboards are safe.</p>
+
+            <button
+                className="menu-button-primary launch-button"
+                onClick={onLaunch}
+                style={{marginTop: '40px'}}
+            >
+                LAUNCH GAME
+            </button>
+        </div>
+    );
+}
+
+
+// --- MainMenu Component (No Change) ---
 function MainMenu({ onStartGame, onViewLeaderboard }) {
   // Uses the updated CSS classes from App.css
   return (
@@ -65,7 +97,7 @@ function MainMenu({ onStartGame, onViewLeaderboard }) {
 }
 
 
-// --- Upgrade Card Component (No change) ---
+// --- Upgrade Card Component (No Change) ---
 function UpgradeCard({ choice, onSelect }) {
   return (
     <button className="upgrade-card" onClick={() => onSelect(choice)}>
@@ -95,7 +127,8 @@ function UpgradeCard({ choice, onSelect }) {
 
 
 function App() {
-  const [gameStatus, setGameStatus] = useState('menu');
+  // --- MODIFIED: Initial state is now determined by getInitialStatus() ---
+  const [gameStatus, setGameStatus] = useState(getInitialStatus);
   const [gameMode, setGameMode] = useState('wave'); 
   const [leaderboardMode, setLeaderboardMode] = useState('wave');
 
@@ -124,6 +157,11 @@ function App() {
   const [showBossIndicator, setShowBossIndicator] = useState(false);
   
   const [showStats, setShowStats] = useState(false); 
+  
+  // --- Audio Refs (UNCHANGED) ---
+  const menuAudioRef = useRef(null);
+  const gameAudioRef = useRef(null);
+  // --- END NEW ---
 
   useEffect(() => {
     showUpgradeMenuRef.current = showUpgradeMenu;
@@ -140,6 +178,69 @@ function App() {
       setShowBossIndicator(false); 
     }
   }, [isBossActive, gameMode]);
+
+  // --- Audio Initialization (UNCHANGED) ---
+  useEffect(() => {
+      // Menu Music (Loops)
+      const menuAudio = new Audio('assets/main_menu.mp3');
+      menuAudio.loop = true;
+      menuAudio.volume = 0.5; 
+      menuAudioRef.current = menuAudio;
+
+      // Gameplay Music (Loops)
+      const gameAudio = new Audio('assets/gameplay.mp3');
+      gameAudio.loop = true;
+      gameAudio.volume = 0.3; 
+      gameAudioRef.current = gameAudio;
+
+      // Cleanup function: pause all audio when component unmounts
+      return () => {
+          menuAudioRef.current?.pause();
+          gameAudioRef.current?.pause();
+      };
+  }, []); 
+
+  // --- Audio Control Effect (Slightly modified to ignore splash state) ---
+  useEffect(() => {
+      const menuAudio = menuAudioRef.current;
+      const gameAudio = gameAudioRef.current;
+
+      if (!menuAudio || !gameAudio || gameStatus === 'splash' || gameStatus === 'loading') return;
+
+      const isMenuOrOverlay = gameStatus !== 'playing';
+      
+      if (isMenuOrOverlay) {
+          gameAudio.pause();
+          // Only play menu music if it hasn't been started yet (or was paused)
+          if (menuAudio.paused) { 
+            menuAudio.play().catch(e => console.log("Menu music resume blocked:", e));
+          }
+      } else if (gameStatus === 'playing' && !isPaused) {
+          menuAudio.pause();
+          gameAudio.play().catch(e => console.log("Gameplay music playback blocked:", e));
+      } else if (isPaused) {
+          gameAudio.pause();
+          menuAudio.pause(); 
+      }
+
+  }, [gameStatus, isPaused]); 
+  // --- END MODIFIED ---
+
+  // --- Launch Game Handler (MODIFIED: Sets localStorage flag) ---
+  const handleLaunchGame = useCallback(() => {
+      // This is the user interaction needed to start music
+      menuAudioRef.current?.play().catch(e => console.error("Initial menu music playback failed:", e));
+
+      // Mark the game as launched so future loads skip the splash
+      localStorage.setItem('hasLaunched', 'true');
+
+      // Introduce a small "loading" delay before showing the menu
+      setGameStatus('loading');
+      setTimeout(() => {
+          setGameStatus('menu');
+      }, 800); 
+  }, []);
+  // --- END MODIFIED ---
 
 
   const togglePause = useCallback(() => {
@@ -276,7 +377,9 @@ function App() {
     setUpgradeChoices([]);
   };
 
+  // --- MODIFIED: Restarts without a full page reload ---
   const handleRestart = () => {
+    // Reset all game-related states
     setGameState({
       score: 0, health: 10, maxHealth: 10, isGameOver: false, waveNumber: 0, moveSpeed: PLAYER_BASE_SPEED,
       weapons: [], playerBaseDamage: 0, critChance: 0, critDamage: 1.5, bulletBounces: 0, elapsedTime: 0
@@ -284,10 +387,13 @@ function App() {
     setIsPaused(false); setShowPauseMenu(false); setFinalScore(0); setFinalWaveReached(0); 
     setFinalDamageDealt(0); setFinalSessionDuration(0);
     setIsBossActive(false); setBossDirection(null); setShowBossIndicator(false); setShowStats(false);
+    setGameMode('wave'); // Reset the default mode for the menu
+    
+    // Go directly to the main menu without reloading
     setGameStatus('menu');
     setLeaderboardMode('wave'); 
-    window.location.reload();
   };
+  // --- END MODIFIED ---
 
   const handleStartGame = (mode) => {
     setGameMode(mode); 
@@ -318,6 +424,21 @@ function App() {
   const showLeaderboardScreen = gameStatus === 'leaderboard';
 
   const renderScreen = () => {
+      if (gameStatus === 'splash') {
+          return <SplashScreen onLaunch={handleLaunchGame} />;
+      }
+      
+      // Show a simple loading screen after interaction
+      if (gameStatus === 'loading') {
+          return (
+              <div className="loading-overlay">
+                  <h1>LOADING ASSETS...</h1>
+                  <p>Starting music...</p>
+                  <div className="loader"></div>
+              </div>
+          );
+      }
+      
       if (gameStatus === 'menu') {
           return (
             <MainMenu onStartGame={handleStartGame} onViewLeaderboard={handleViewLeaderboard} />

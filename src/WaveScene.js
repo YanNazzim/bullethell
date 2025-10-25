@@ -6,7 +6,9 @@ import {
     WEAPON_DB, STAT_UPGRADE_DB, ENEMY_BASE_HEALTH, ENEMY_CHASE_SPEED, ENEMY_DAMAGE_BODY,
     ELITE_ENEMY_HEALTH, ELITE_ENEMY_SPEED, ELITE_ENEMY_DAMAGE,
     BOOMERANG_ENEMY_HEALTH, BOOMERANG_ENEMY_DAMAGE, BOOMERANG_ENEMY_CHASE_SPEED,
-    MAX_BOOMERANG_ENEMIES, BOSS_LEVEL_INTERVAL, BOSS_BASE_HEALTH, BOSS_DAMAGE, BOSS_SHOOT_RATE_MS, BULLET_SPEED
+    MAX_BOOMERANG_ENEMIES, BOSS_LEVEL_INTERVAL, BOSS_BASE_HEALTH, BOSS_DAMAGE, BOSS_SHOOT_RATE_MS, BULLET_SPEED,
+    // --- NEW IMPORT ---
+    ELECTRIC_BOLT_BONUS_DAMAGE 
 } from './GameConstants';
 
 // --- BASE SCENE: Contains all common initialization and methods ---
@@ -36,7 +38,7 @@ export class BaseScene extends Phaser.Scene {
         this.playerBaseDamage = 0;
         this.playerSpeed = PLAYER_BASE_SPEED;
         this.playerCritChance = 0;
-        this.playerCritDamage = 2;
+        this.playerCritDamage = 1.5;
         this.bulletBounces = 0;
         this.playerWeaponInventory = new Map();
         this.sessionStartTime = 0;
@@ -65,6 +67,11 @@ export class BaseScene extends Phaser.Scene {
         this.load.image('elite_enemy', 'assets/elite_enemy.png');
         this.load.image('boomerang_enemy', 'assets/boomerang_enemy.png');
         this.load.image('boss', 'assets/purple_boss.png');
+
+        // --- NEW: Preload music files ---
+        this.load.audio('main_menu_music', 'assets/main_menu.mp3');
+        this.load.audio('gameplay_music', 'assets/gameplay.mp3');
+        // --- END NEW ---
     }
 
     create() {
@@ -473,7 +480,10 @@ export class BaseScene extends Phaser.Scene {
         let zappedEnemies = new Set();
         let currentTarget = target;
         let prevTarget = this.player;
-        const baseDmg = (this.playerWeaponDamage + this.playerBaseDamage) * 0.75;
+        
+        // --- MODIFIED LINE: Uses constant now ---
+        const baseDmg = ((this.playerWeaponDamage + this.playerBaseDamage) * 0.75) + ELECTRIC_BOLT_BONUS_DAMAGE;
+        
         const isCrit = Math.random() < this.playerCritChance;
         const finalDmg = isCrit ? baseDmg * this.playerCritDamage : baseDmg;
         for (let i = 0; i < electricChains; i++) {
