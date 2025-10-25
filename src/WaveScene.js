@@ -36,7 +36,7 @@ export class BaseScene extends Phaser.Scene {
         this.playerBaseDamage = 0;
         this.playerSpeed = PLAYER_BASE_SPEED;
         this.playerCritChance = 0;
-        this.playerCritDamage = 1.5;
+        this.playerCritDamage = 2;
         this.bulletBounces = 0;
         this.playerWeaponInventory = new Map();
         this.sessionStartTime = 0;

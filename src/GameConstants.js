@@ -41,7 +41,7 @@ export const STAT_UPGRADE_DB = {
         }
     },
     'restore_health': {
-        name: 'Restore to full health Health',
+        name: 'Restore to full Health',
         description: 'Fills Health Bar.',
         image: 'assets/icon_restore_health.png',
         apply: (scene) => {
