@@ -1,5 +1,4 @@
 // src/GameConstants.js
-import Phaser from 'phaser';
 export const PLAYER_BASE_SPEED = 200;
 export const PLAYER_HEALTH = 10;
 export const BULLET_SPEED = 600;
@@ -9,12 +8,12 @@ export const ENEMY_BASE_HEALTH = 3;
 export const ENEMY_DAMAGE_BODY = 1;
 
 export const ELITE_ENEMY_HEALTH = 25;
-export const ELITE_ENEMY_SPEED = 30;
+export const ELITE_ENEMY_SPEED = 140;
 export const ELITE_ENEMY_DAMAGE = 3;
 
 export const BOOMERANG_ENEMY_HEALTH = 12;
 export const BOOMERANG_ENEMY_DAMAGE = 2;
-export const BOOMERANG_ENEMY_CHASE_SPEED = 120;
+export const BOOMERANG_ENEMY_CHASE_SPEED = 160;
 
 export const BOSS_LEVEL_INTERVAL = 30;
 export const BOSS_BASE_HEALTH = 150;
@@ -27,7 +26,7 @@ export const MAP_HEIGHT = 3000;
 
 export const MAX_CHAOS_ENEMIES = 150; // Max enemies for chaos mode
 export const CHAOS_SPAWN_RATE_MS = 1000; // Initial spawn rate for chaos mode
-export const CHAOS_KILLS_TO_LEVEL = 5; // Kills required for a level up in chaos mode
+// REMOVED: export const CHAOS_KILLS_TO_LEVEL = 5; 
 
 export const MAX_BOOMERANG_ENEMIES = 3;
 
@@ -177,8 +176,8 @@ export const WEAPON_DB = {
         },
         update: (scene, weaponState) => {
             weaponState.angle += weaponState.speed;
-            const circle = new Phaser.Geom.Circle(scene.player.x, scene.player.y, weaponState.radius);
-            Phaser.Actions.PlaceOnCircle(
+            const circle = new scene.Phaser.Geom.Circle(scene.player.x, scene.player.y, weaponState.radius);
+            scene.Phaser.Actions.PlaceOnCircle(
                 scene.shieldOrbs.getChildren(),
                 circle,
                 weaponState.angle

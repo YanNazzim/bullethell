@@ -418,7 +418,8 @@ function App() {
               {/* UPGRADE MENU */}
               {showUpgradeMenu && (
                 <div className="upgrade-overlay">
-                  <h2>[ {levelText} {gameState.waveNumber} COMPLETE ]</h2>
+                  {/* FIX: Dynamic Title for Chaos Mode: "LEVEL UP!" */}
+                  <h2>[ {gameMode === 'chaos' ? 'LEVEL UP!' : `${levelText} ${gameState.waveNumber} COMPLETE`} ]</h2>
                   <p>CHOOSE A SYSTEM UPGRADE:</p>
                   <div className="upgrade-choices">
                     {upgradeChoices.map((choice, index) => (

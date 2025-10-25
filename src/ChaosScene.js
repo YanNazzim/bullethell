@@ -3,7 +3,7 @@ import { BaseScene } from './WaveScene';
 import Phaser from 'phaser';
 import { 
     MAP_WIDTH, MAP_HEIGHT, MAX_CHAOS_ENEMIES, CHAOS_SPAWN_RATE_MS, 
-    MAX_BOOMERANG_ENEMIES, CHAOS_KILLS_TO_LEVEL, WEAPON_DB
+    MAX_BOOMERANG_ENEMIES, WEAPON_DB // Removed CHAOS_KILLS_TO_LEVEL
 } from './GameConstants';
 
 // --- CHAOS SCENE (Continuous Gameplay) ---
@@ -134,11 +134,15 @@ export class ChaosScene extends BaseScene {
         if (this.isGameOver) return;
         
         if (!enemy.getData('isBoss')) {
-            this.score += 1;
+            // BALANCE FIX: Score scaled by current level
+            this.score += this.level;
             this.onUpdate({ type: 'score', value: this.score });
             
             this.killsInCurrentLevel++;
-            if (this.killsInCurrentLevel >= CHAOS_KILLS_TO_LEVEL) {
+            
+            // LEVEL UP FIX: Dynamic kill requirement (Level N needs N + 4 kills)
+            const killsRequired = this.level + 4;
+            if (this.killsInCurrentLevel >= killsRequired) {
                 this.enterUpgradeState();
             }
         }

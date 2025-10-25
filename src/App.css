@@ -467,7 +467,7 @@ h2 {
   background: rgba(26, 26, 46, 0.9);
   border: 2px solid var(--color-primary);
   box-shadow: 0 0 5px var(--color-primary); /* Subtle glow */
-  font-size: 1.1rem;
+  font-size: 1rem; /* ADJUSTED: Reduced from 1.1rem to 1rem base size */
   table-layout: fixed;
 }
 
@@ -478,6 +478,8 @@ h2 {
   border-bottom: 1px solid rgba(97, 218, 251, 0.3);
   color: white;
   white-space: nowrap; 
+  overflow: hidden; /* Ensure content doesn't break out */
+  text-overflow: ellipsis; /* Add ellipsis if content is too wide (though numbers should be contained) */
 }
 
 /* Align name left */
@@ -497,7 +499,7 @@ h2 {
 /* Leaderboard First Place Highlight */
 .score-table tbody tr:nth-child(1) {
     color: var(--color-secondary); /* Highlight winner with accent color */
-    font-size: 1.3rem;
+    font-size: 1.1rem; /* ADJUSTED: Reduced from 1.3rem to 1.1rem */
     text-shadow: var(--glow-secondary);
 }
 
@@ -654,6 +656,10 @@ h2 {
     .upgrade-card {
         width: 170px; 
     }
+    
+    .score-table {
+        font-size: 0.9rem; /* Further reduced table font */
+    }
 }
 
 
@@ -692,8 +698,21 @@ h2 {
     }
 
     .score-table {
-        font-size: 0.85rem; 
+        font-size: 0.7rem; /* ADJUSTED: Aggressively reduced font size on mobile */
         width: 100%; 
+    }
+     .score-table th, .score-table td {
+        padding: 5px 1px; /* ADJUSTED: Tightest possible padding on mobile */
+    }
+     /* Align name left */
+    .score-table th:nth-child(2),
+    .score-table td:nth-child(2) {
+        padding-left: 5px;
+    }
+    
+    /* Highlighted row must also shrink */
+    .score-table tbody tr:nth-child(1) {
+        font-size: 0.85rem; 
     }
 }
 
