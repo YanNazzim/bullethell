@@ -38,8 +38,7 @@ function SplashScreen({ onLaunch }) {
         <div className="splash-screen-overlay">
             <h1>PROTOCOL: BULLET HELL</h1>
             <p className="patch-notes">[ V1.2.0 - CHAOS MODE ONLINE ]</p>
-            <p>Thank you for testing the latest combat simulation suite.</p>
-            <p>Your previous progress and leaderboards are safe.</p>
+            <p>Thank you for testing the latest update to my game!.</p>
 
             <button
                 className="menu-button-primary launch-button"

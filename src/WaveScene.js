@@ -75,6 +75,9 @@ export class BaseScene extends Phaser.Scene {
     }
 
     create() {
+        // --- BUG FIX: Expose imported Phaser object on the scene instance for use in GameConstants.js weapon update methods ---
+        this.Phaser = Phaser; 
+        
         this.resetGameStats();
         this.physics.world.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
         // --- FIX APPLIED HERE: Separated displayWidth/displayHeight assignments ---
