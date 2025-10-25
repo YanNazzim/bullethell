@@ -1,31 +1,45 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js'
 import './App.css';
-import BulletHellGame from './BulletHellGame'; 
+import BulletHellGame from './BulletHellGame';
 
 const supabaseUrl = 'https://jzfbvddkrzfibfdgyhdy.supabase.co'
 
 // --- DEBUG CHECK: No need to log key to console anymore as it's working ---
-const supabaseKey = process.env.REACT_APP_SUPABASE_KEY 
+const supabaseKey = process.env.REACT_APP_SUPABASE_KEY
 const supabase = createClient(supabaseUrl, supabaseKey)
 // --- END SUPABASE SETUP ---
 
 // Default player base speed used by initial game state
-const PLAYER_BASE_SPEED = 150; 
+const PLAYER_BASE_SPEED = 150;
 
-// --- MainMenu Component (No change) ---
+// --- Helper function to format milliseconds into MM:SS ---
+function formatTime(milliseconds) {
+    if (milliseconds === null || milliseconds === undefined) return '00:00';
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+
+// --- MODIFIED: MainMenu Component ---
 function MainMenu({ highScores, onStartGame, onViewLeaderboard }) {
   return (
     <div className="main-menu-overlay">
       <h1>SPACE BULLET HELL</h1>
       <div className="menu-leaderboard-container">
-        <h3>Top 5 High Scores</h3>
+        <h3>TOP SCORES</h3>
+        {/* --- MODIFIED: Added Wave, Damage, Time columns --- */}
         <table className="score-table small-table">
           <thead>
             <tr>
               <th>#</th>
-              <th>Player</th>
-              <th>Score</th>
+              <th>PLAYER</th>
+              <th>WAVE</th>
+              <th>SCORE</th>
+              <th>DMG</th>
+              <th>TIME</th>
             </tr>
           </thead>
           <tbody>
@@ -33,7 +47,10 @@ function MainMenu({ highScores, onStartGame, onViewLeaderboard }) {
               <tr key={index}>
                 <td>{index + 1}</td>
                 <td>{score.name}</td>
-                <td>{score.score}</td>
+                <td>{score.wave_reached ?? '-'}</td> {/* Show wave */}
+                <td>{score.score?.toLocaleString() ?? '-'}</td> {/* Show score */}
+                <td>{score.total_damage_dealt?.toLocaleString() ?? '-'}</td> {/* Show damage */}
+                <td>{formatTime(score.time_played)}</td> {/* Show time */}
               </tr>
             ))}
             {/* Fill remaining rows if less than 5 scores */}
@@ -41,30 +58,35 @@ function MainMenu({ highScores, onStartGame, onViewLeaderboard }) {
               <tr key={`empty-${index}`}>
                 <td>{highScores.length + 1 + index}</td>
                 <td>---</td>
-                <td>---</td>
+                <td>--</td> {/* Placeholder */}
+                <td>---</td> {/* Placeholder */}
+                <td>---</td> {/* Placeholder */}
+                <td>--:--</td> {/* Placeholder */}
               </tr>
             ))}
           </tbody>
         </table>
+        {/* --- END MODIFIED --- */}
       </div>
-      
+
       <div className="menu-buttons">
-        <button 
-          className="restart-button"
+        <button
+          className="menu-button-primary"
           onClick={onStartGame}
         >
-          Play Game
+          START GAME
         </button>
-        <button 
-          className="restart-button options-button"
+        <button
+          className="menu-button-secondary"
           onClick={() => alert("Options are not implemented yet! (Soon!)")}
         >
-          Options
+          OPTIONS
         </button>
       </div>
     </div>
   );
 }
+// --- END MODIFIED ---
 
 
 // --- Upgrade Card Component (No change) ---
@@ -72,20 +94,20 @@ function UpgradeCard({ choice, onSelect }) {
   return (
     <button className="upgrade-card" onClick={() => onSelect(choice)}>
       <h3>{choice.name}</h3>
-      <img 
-        src={choice.image} 
-        alt={choice.name} 
-        onError={(e) => { 
+      <img
+        src={choice.image}
+        alt={choice.name}
+        onError={(e) => {
           // Fallback if the image is missing
-          e.target.style.display = 'none'; 
+          e.target.style.display = 'none';
           e.target.nextSibling.style.display = 'block';
         }}
       />
       {/* Fallback text */}
       <div className="img-fallback" style={{display: 'none', padding: '32px 0'}}>[IMG]</div>
-      
+
       <p>{choice.description}</p>
-      
+
       {choice.level !== 'N/A' && (
         <span className="level-badge">
           {choice.type === 'weapon_new' ? 'New!' : `Lv. ${choice.level}`}
@@ -98,48 +120,56 @@ function UpgradeCard({ choice, onSelect }) {
 
 function App() {
   // --- NEW STATE: Tracks current screen ('menu', 'playing', 'leaderboard') ---
-  const [gameStatus, setGameStatus] = useState('menu'); 
-  
+  const [gameStatus, setGameStatus] = useState('menu');
+
   const [isPaused, setIsPaused] = useState(false);
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const [showUpgradeMenu, setShowUpgradeMenu] = useState(false);
-  
-  // --- NEW STATES FOR SCOREBOARD ---
+
+  // --- MODIFIED: Scoreboard states ---
   const [highScores, setHighScores] = useState([]);
   const [playerName, setPlayerName] = useState('');
-  const [finalScore, setFinalScore] = useState(0); 
-  // --- END NEW STATES ---
-  
+  const [finalScore, setFinalScore] = useState(0);
+  const [finalWaveReached, setFinalWaveReached] = useState(0); // NEW
+  const [finalDamageDealt, setFinalDamageDealt] = useState(0); // NEW
+  const [finalSessionDuration, setFinalSessionDuration] = useState(0); // NEW
+  // --- END MODIFIED ---
+
   const [upgradeChoices, setUpgradeChoices] = useState([]);
-  
+
+  // --- NEW: State for "WAVE X" announcement ---
+  const [waveAnnouncement, setWaveAnnouncement] = useState('');
+  const waveTimerRef = useRef(null); // To manage timers
+  // --- END NEW ---
+
   const showUpgradeMenuRef = useRef(false);
-  
+
   const gameInstanceRef = useRef(null);
-  
+
   // --- NEW BOSS UI STATE ---
   const [isBossActive, setIsBossActive] = useState(false);
   const [bossDirection, setBossDirection] = useState(null); // Angle in degrees, or null if on screen
   // --- NEW: Controls the visibility of the "BOSS ROUND!" text and pulse effect
-  const [showBossIndicator, setShowBossIndicator] = useState(false); 
+  const [showBossIndicator, setShowBossIndicator] = useState(false);
   // --- END NEW BOSS UI STATE ---
-  
+
   useEffect(() => {
     showUpgradeMenuRef.current = showUpgradeMenu;
   }, [showUpgradeMenu]);
-  
+
   // --- NEW useEffect for Boss Indicator Timer ---
   useEffect(() => {
     if (isBossActive) {
       // Show the full indicator when the boss first spawns
       setShowBossIndicator(true);
-      
+
       // Set a timer to hide the full indicator after 5 seconds (leaving only the arrow if needed)
       const timer = setTimeout(() => {
         setShowBossIndicator(false);
-      }, 5000); 
-      
+      }, 5000);
+
       // If isBossActive becomes false (boss killed), clean up the timer immediately
-      return () => clearTimeout(timer); 
+      return () => clearTimeout(timer);
     } else {
       setShowBossIndicator(false); // Ensure it's hidden if boss is defeated/inactive
     }
@@ -150,30 +180,60 @@ function App() {
   const togglePause = useCallback(() => {
     // Only allow pause if currently playing
     if (gameStatus !== 'playing') return;
-    if (showUpgradeMenuRef.current) return; 
+    if (showUpgradeMenuRef.current) return;
     setIsPaused(p => {
       const newPauseState = !p;
-      setShowPauseMenu(newPauseState); 
+      setShowPauseMenu(newPauseState);
       return newPauseState;
     });
   }, [gameStatus]);
 
+  // --- MODIFIED: GameState for Wave-based progression ---
   const [gameState, setGameState] = useState({
     score: 0,
     health: 10,
     maxHealth: 10,
     isGameOver: false,
-    level: 1,
+    waveNumber: 0, // REPLACED level
     moveSpeed: PLAYER_BASE_SPEED,
     weapons: [],
     playerBaseDamage: 0,
     critChance: 0,
     critDamage: 1.5,
-    bulletBounces: 0
-    // isBossActive and bossDirection managed separately for clearer UI rendering logic
+    bulletBounces: 0,
+    elapsedTime: 0, // NEW for display
+    // --- REMOVED: Enemy count state ---
   });
+  // --- END MODIFIED ---
 
+  // --- MODIFIED: handleGameUpdate for Wave-based stats ---
   const handleGameUpdate = useCallback((data) => {
+
+    // --- NEW: Handle Wave Announcement ---
+    if (data.type === 'newWave') {
+        // Clear any existing timer
+        if (waveTimerRef.current) {
+            clearTimeout(waveTimerRef.current);
+        }
+
+        // Don't show "WAVE 30" if the boss indicator will show instead
+        // We use 30 from the hardcoded constant in Phaser
+        if (data.value % 30 === 0 && data.value > 0) {
+           setWaveAnnouncement(''); // Ensure it's clear
+           return; // Don't set state, let boss indicator take over
+        }
+
+        setWaveAnnouncement(`WAVE ${data.value}`);
+
+        // Set a timer to clear it
+        waveTimerRef.current = setTimeout(() => {
+            setWaveAnnouncement('');
+            waveTimerRef.current = null;
+        }, 2500); // Show for 2.5 seconds
+        return; // This update doesn't need to merge into gameState
+    }
+    // --- END NEW ---
+
     setGameState(prevState => {
       switch (data.type) {
         case 'score':
@@ -183,158 +243,181 @@ function App() {
         case 'gameOver':
           return { ...prevState, isGameOver: data.value };
         case 'fullStats':
-          // --- UPDATED: Handle new boss stats ---
+          // --- UPDATED: Handle new boss and wave stats ---
           setIsBossActive(data.isBossActive);
           setBossDirection(data.bossDirection);
-          // --- END UPDATED ---
+
           return {
             ...prevState,
-            level: data.level,
+            waveNumber: data.waveNumber, // CHANGED
             health: data.health,
             maxHealth: data.maxHealth,
             moveSpeed: data.moveSpeed,
             weapons: data.weapons,
             playerBaseDamage: data.playerBaseDamage,
-            critChance: data.critChance, 
+            critChance: data.critChance,
             critDamage: data.critDamage,
-            bulletBounces: data.bulletBounces
+            bulletBounces: data.bulletBounces,
+            score: data.score,
+            elapsedTime: data.elapsedTime, // NEW
+            // --- REMOVED: Enemy count state ---
           };
         default:
           return prevState;
       }
     });
   }, []);
-  
-  const handleGameOverSubmit = useCallback((score) => {
-      setFinalScore(score);
-      // When game is over and submission is possible, implicitly show the form by updating state
+  // --- END MODIFIED ---
+
+  // --- MODIFIED: handleGameOverSubmit to receive object ---
+  const handleGameOverSubmit = useCallback((finalStats) => {
+      setFinalScore(finalStats.score);
+      setFinalWaveReached(finalStats.waveReached);
+      setFinalDamageDealt(finalStats.damageDealt);
+      setFinalSessionDuration(finalStats.sessionDuration);
       // setGameStatus is handled implicitly by gameState.isGameOver being true
   }, []);
-  
-  // --- MODIFIED: Supabase API Logic (fetchLeaderboard) ---
-  // Now fetching 10 scores to show on Leaderboard screen, and 5 for the menu
+  // --- END MODIFIED ---
+
+  // --- MODIFIED: fetchLeaderboard to get new columns and sort ---
   const fetchLeaderboard = useCallback(async () => {
       try {
-          // Fetch up to 10 scores
+          // Fetch top 10 scores with new columns, sorted by wave then score
           let { data, error } = await supabase
               .from('high_scores')
-              .select('name, score')
-              .order('score', { ascending: false })
+              .select('name, wave_reached, score, total_damage_dealt, time_played') // Select new columns
+              .order('wave_reached', { ascending: true }) // Sort by wave first (highest)
+              .order('score', { ascending: false })        // Then by score (highest)
               .limit(10);
-              
+
           if (error) throw error;
-          
+
           setHighScores(data);
       } catch (error) {
           console.error("Leaderboard Fetch Error:", error.message);
+          // Add dummy data for new columns if fetch fails
           setHighScores([
-             { name: 'SUPABASE_ERROR', score: 1000 },
-             { name: 'CHECK_CONSOLE', score: 500 }
+             { name: 'SUPABASE_ERROR', wave_reached: 99, score: 1000, total_damage_dealt: 9999, time_played: 600000 },
+             { name: 'CHECK_CONSOLE', wave_reached: 1, score: 500, total_damage_dealt: 100, time_played: 30000 }
           ]);
       }
   }, []);
-  
+  // --- END MODIFIED ---
+
   // --- NEW: Fetch leaderboard on component mount for the menu ---
   useEffect(() => {
       fetchLeaderboard();
   }, [fetchLeaderboard]);
-  
-  // --- MODIFIED: Submit Score ---
+
+  // --- MODIFIED: Submit Score with new stats ---
   const submitScore = useCallback(async (e) => {
       e.preventDefault();
-      
+
       const dataToInsert = {
-          name: playerName || 'Player', 
+          name: playerName || 'Player',
           score: finalScore,
+          wave_reached: finalWaveReached, // NEW
+          total_damage_dealt: finalDamageDealt, // NEW
+          time_played: finalSessionDuration, // NEW (store as milliseconds)
       };
-      
+
       try {
           const { error } = await supabase
               .from('high_scores')
               .insert([dataToInsert]);
 
           if (error) throw error;
-          
-          alert(`Score of ${finalScore} submitted!`);
-          
+
+          alert(`Score submitted! Wave: ${finalWaveReached}, Score: ${finalScore}`);
+
       } catch (error) {
           console.error("Submission Error:", error.message);
-          alert(`Submission failed: ${error.message}. Score: ${finalScore}`);
+          alert(`Submission failed: ${error.message}.`);
       }
-      
-      setPlayerName(''); 
+
+      setPlayerName('');
       // After submission, change status to show the full leaderboard and refresh scores
-      setGameStatus('leaderboard'); 
+      setGameStatus('leaderboard');
       fetchLeaderboard();
-  }, [playerName, finalScore, fetchLeaderboard]);
-  // --- END MODIFIED API Logic ---
-  
+  }, [playerName, finalScore, finalWaveReached, finalDamageDealt, finalSessionDuration, fetchLeaderboard]);
+  // --- END MODIFIED ---
+
 
   const handleShowUpgrade = useCallback((choices) => {
     console.log("[App.js] handleShowUpgrade: Received choices from Phaser:", choices);
-    setUpgradeChoices(choices); 
+    setUpgradeChoices(choices);
     setIsPaused(true);
     setShowPauseMenu(false); // Ensure pause menu is hidden
     setShowUpgradeMenu(true);
-  }, []); 
+  }, []);
 
   const handleUpgradeChoice = (choice) => {
     console.log(`[App.js] handleUpgradeChoice: Chose:`, choice);
     if (gameInstanceRef.current && gameInstanceRef.current.game) {
       const scene = gameInstanceRef.current.game.scene.getScene('MainScene');
       if (scene) {
-        scene.applyUpgrade(choice); 
+        scene.applyUpgrade(choice);
       }
     }
     setShowUpgradeMenu(false);
     setIsPaused(false);
-    setUpgradeChoices([]); 
+    setUpgradeChoices([]);
   };
-  
+
+  // --- MODIFIED: handleRestart for Wave-based state ---
   const handleRestart = () => {
     // Reset all game state and go back to menu to allow a fresh start
     setGameState({
-      score: 0, health: 10, maxHealth: 10, isGameOver: false, level: 1, moveSpeed: PLAYER_BASE_SPEED, 
-      weapons: [], playerBaseDamage: 0, critChance: 0, critDamage: 1.5, bulletBounces: 0
+      score: 0, health: 10, maxHealth: 10, isGameOver: false, waveNumber: 0, moveSpeed: PLAYER_BASE_SPEED,
+      weapons: [], playerBaseDamage: 0, critChance: 0, critDamage: 1.5, bulletBounces: 0, elapsedTime: 0
     });
     setIsPaused(false);
     setShowPauseMenu(false);
+    // Reset final stats
     setFinalScore(0);
-    
+    setFinalWaveReached(0);
+    setFinalDamageDealt(0);
+    setFinalSessionDuration(0);
+
     // --- NEW: Reset boss state on restart ---
-    setIsBossActive(false); 
+    setIsBossActive(false);
     setBossDirection(null);
     setShowBossIndicator(false);
-    
-    setGameStatus('menu'); 
+
+    setGameStatus('menu');
     fetchLeaderboard(); // Refresh menu leaderboard
-    
+
     // Force a full window reload to reset the Phaser canvas and game state completely
-    window.location.reload(); 
+    window.location.reload();
   };
-  
+  // --- END MODIFIED ---
+
   const handleStartGame = () => {
     setGameStatus('playing');
     // Phaser game instance should start automatically because BulletHellGame component is rendered
   }
-  
+
   const handleViewLeaderboard = () => {
       // Game Over -> Score Submission -> View Leaderboard Button
       setGameStatus('leaderboard');
   }
-  
+
   const getWeaponStat = (key) => {
     return gameState.weapons.find(w => w.key === key);
   }
-  
+
   const autoBullet = getWeaponStat('autoBullet');
   const electricBolt = getWeaponStat('electricBolt');
 
   const isHealthLow = gameState.health <= (gameState.maxHealth * 0.2);
 
-  const showScoreSubmission = gameState.isGameOver && finalScore > 0 && gameStatus !== 'leaderboard';
+  const showScoreSubmission = gameState.isGameOver && finalWaveReached > 0 && gameStatus !== 'leaderboard'; // Check wave reached > 0
   const showLeaderboardScreen = gameStatus === 'leaderboard';
-  
+
+  // --- REMOVED: All Bar calculations ---
+  // Health percentage is now calculated inline
+
+
   // Decide which screen to render
   const renderScreen = () => {
       if (gameStatus === 'menu') {
@@ -345,187 +428,184 @@ function App() {
             />
           );
       }
-      
+
       // Logic for rendering the BOSS UI
       const shouldShowBossUI = isBossActive && (showBossIndicator || bossDirection !== null);
       const bossIndicatorClass = showBossIndicator ? "" : "arrow-only";
-      
+
       return (
         <>
             {/* Game UI and Overlays are only shown if not in the menu */}
             <div className="game-ui-overlay">
-        
-              <div className="game-stats">
-                <div>SCORE: {gameState.score}</div>
-                
-                <div className={`player-health-bar-container ${isHealthLow ? 'health-low' : ''}`}>
-                  <span className="health-number">HP {gameState.health}</span>
-                  <div className="health-bar-wrapper">
-                    <div 
-                      className="health-bar-fill" 
-                      style={{
-                        width: `${(gameState.health / gameState.maxHealth) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <span className="health-max">/ {gameState.maxHealth}</span>
-                </div>
-                
-                <button className="pause-button" onClick={togglePause}>
-                  <div className="pause-icon" />
-                </button>
+
+              {/* --- NEW: Top Health Bar (for all screens) --- */}
+              <div className={`top-health-bar-container ${isHealthLow ? 'health-low' : ''}`}>
+                <div
+                    className="bar-fill health-fill"
+                    style={{ width: `${(gameState.health / gameState.maxHealth) * 100}%` }}
+                ></div>
+                <span className="bar-label">HP: {gameState.health}/{gameState.maxHealth}</span>
               </div>
-        
-              <div className="player-stats">
-                <div>Level: {gameState.level}</div>
-                <div>Move Spd: {gameState.moveSpeed}</div>
-                
-                {gameState.playerBaseDamage > 0 && (
-                  <div style={{color: '#ff8888'}}>
-                    Dmg: +{gameState.playerBaseDamage}
+
+              {/* --- MODIFIED: Bottom HUD Container (for all screens) --- */}
+              <div className="bottom-hud-container">
+
+                {/* --- NEW: Wrapper for top row of bottom HUD --- */}
+                <div className="bottom-hud-controls">
+                  <button className="pause-button" onClick={togglePause}>
+                      PAUSE
+                  </button>
+
+                  <div className="player-level-box">
+                      WAVE {gameState.waveNumber}
                   </div>
-                )}
-                {/* Critical Chance Stat Display */}
-                {gameState.critChance > 0 && (
-                  <div style={{color: '#ffaa00'}}>
-                    Crit: {(gameState.critChance * 100).toFixed(0)}%
+                  {/* --- NEW: Timer Display --- */}
+                  <div className="timer-display">
+                      {formatTime(gameState.elapsedTime)}
                   </div>
-                )}
-                {/* Critical Damage Stat Display */}
-                {gameState.critChance > 0 && (
-                  <div style={{color: '#ffaa00'}}>
-                    CritDmg: {(gameState.critDamage * 100).toFixed(0)}%
-                  </div>
-                )}
-                {gameState.bulletBounces > 0 && (
-                  <div style={{color: '#aaaaff'}}>
-                    Bounce: +{gameState.bulletBounces}
-                  </div>
-                )}
-                
-                <div className="weapon-stats-list">
-                  {autoBullet && (
-                    <div style={{color: '#FFFFFF'}}>
-                      Bullet Dmg: {autoBullet.damage}
-                    </div>
-                  )}
-                  {autoBullet && (
-                    <div style={{color: '#FFFFFF'}}>
-                      Bullet Spd: {autoBullet.atkSpeed.toFixed(1)}/s
-                    </div>
-                  )}
+                  {/* --- END NEW --- */}
+                </div>
+
+
+                {/* Stats Table (Snug below bars) */}
+                <div className="player-stats-snug">
+                  <div className="stat-group-header">COMBAT DATA</div>
+                  <div className="stat-row"><span>SCORE</span><span>{gameState.score}</span></div>
+                  <div className="stat-row"><span>MOVE SPD</span><span>{gameState.moveSpeed}</span></div>
+                  <div className="stat-row highlight-red"><span>BASE DMG</span><span>+{gameState.playerBaseDamage}</span></div>
+                  <div className="stat-row highlight-purple"><span>CRIT CHANCE</span><span>{(gameState.critChance * 100).toFixed(0)}%</span></div>
+                  <div className="stat-row highlight-purple"><span>CRIT DMG</span><span>{(gameState.critDamage * 100).toFixed(0)}%</span></div>
+                  <div className="stat-row highlight-blue"><span>BULLET BOUNCE</span><span>+{gameState.bulletBounces}</span></div>
+
+                  <div className="stat-group-header weapon-header">WEAPON SYSTEMS</div>
+                  <div className="stat-row"><span>BULLET DMG</span><span className="highlight-blue">{autoBullet?.damage}</span></div>
+                  <div className="stat-row"><span>FIRE RATE</span><span className="highlight-blue">{autoBullet?.atkSpeed.toFixed(1)}/s</span></div>
                   {electricBolt && (
-                    <div style={{color: '#61dafb'}}>
-                      Zap Spd: {electricBolt.atkSpeed.toFixed(2)}/s
-                    </div>
+                      <div className="stat-row"><span>ZAP RATE</span><span className="highlight-purple">{electricBolt.atkSpeed.toFixed(2)}/s</span></div>
                   )}
                   {getWeaponStat('shield') && (
-                    <div style={{color: '#00aaff'}}>
-                      Shield: {getWeaponStat('shield').count} Orb(s)
-                    </div>
+                      <div className="stat-row"><span>SHIELD ORBS</span><span className="highlight-red">{getWeaponStat('shield').count}</span></div>
                   )}
                 </div>
+
               </div>
-        
-              {/* --- NEW: BOSS UI INDICATOR --- */}
+              {/* --- END MODIFIED BOTTOM HUD --- */}
+
+              {/* --- BOSS UI INDICATOR (Top Center) --- */}
               {shouldShowBossUI && (
                   <div className={`boss-round-indicator ${bossIndicatorClass}`}>
                       {/* Show BOSS ROUND! text ONLY during the 5 second splash */}
-                      {showBossIndicator && <span>BOSS ROUND!</span>}
-                      
+                      {showBossIndicator && <span>!! BOSS ROUND !!</span>}
+
                       {/* Show arrow if boss is active AND off-screen (bossDirection is set) */}
                       {isBossActive && bossDirection !== null && (
-                          <div 
+                          <div
                               className="boss-direction-arrow-container"
                               style={{ transform: `rotate(${bossDirection}deg)` }}
                           >
-                            <div className="boss-direction-arrow"></div> 
+                            <div className="boss-direction-arrow"></div>
                           </div>
                       )}
                   </div>
               )}
+              {/* --- END BOSS UI --- */}
+
+              {/* --- NEW: Wave Announcement Overlay --- */}
+              {waveAnnouncement && (
+                <div className="wave-announcement-overlay">
+                    <h1>{waveAnnouncement}</h1>
+                </div>
+              )}
               {/* --- END NEW --- */}
-        
+
+              {/* PAUSE MENU */}
               {showPauseMenu && (
                 <div className="pause-menu-overlay">
-                  <h2>PAUSED</h2>
-                  <button className="restart-button" onClick={togglePause}>
-                    Continue
+                  <h2>[ SYSTEM PAUSED ]</h2>
+                  <button className="menu-button-primary" onClick={togglePause}>
+                    CONTINUE
                   </button>
-                  <button 
-                    className="restart-button-pause"
+                  <button
+                    className="menu-button-secondary"
                     onClick={handleRestart}
                   >
-                    Main Menu
+                    MAIN MENU
                   </button>
                 </div>
               )}
-        
+
+              {/* UPGRADE MENU */}
               {showUpgradeMenu && (
                 <div className="upgrade-overlay">
-                  <h2>LEVEL UP!</h2>
-                  <p>Choose an Upgrade:</p>
+                  {/* --- MODIFIED: Title for Wave complete --- */}
+                  <h2>[ WAVE {gameState.waveNumber} COMPLETE ]</h2>
+                  <p>CHOOSE A SYSTEM UPGRADE:</p>
                   <div className="upgrade-choices">
                     {upgradeChoices.map((choice, index) => (
-                      <UpgradeCard 
-                        key={choice.key + index} 
-                        choice={choice} 
+                      <UpgradeCard
+                        key={choice.key + index}
+                        choice={choice}
                         onSelect={handleUpgradeChoice}
                       />
                     ))}
                   </div>
                 </div>
               )}
-              
-              {/* --- Score Submission Form --- */}
+
+              {/* GAME OVER / SCORE SUBMISSION */}
               {showScoreSubmission && (
                 <div className="game-over-overlay">
-                  <h2>GAME OVER</h2>
-                  <p className="final-score-text">FINAL SCORE: {finalScore}</p>
-                  
+                  <h2>[ GAME OVER - PROTOCOL FAILURE ]</h2>
+                  {/* --- MODIFIED: Show final wave --- */}
+                  <p className="final-score-text">FINAL WAVE: {finalWaveReached} - SCORE: {finalScore}</p>
+
                   <form className="score-submission-form" onSubmit={submitScore}>
-                      <input 
-                          type="text" 
-                          placeholder="Enter your name" 
-                          value={playerName} 
-                          onChange={(e) => setPlayerName(e.target.value.substring(0, 15))} 
+                      <input
+                          type="text"
+                          placeholder="ENTER CALLSIGN"
+                          value={playerName}
+                          onChange={(e) => setPlayerName(e.target.value.substring(0, 15))}
                           maxLength={15}
                           required
                       />
-                      <button type="submit" className="restart-button">
-                          Submit Score
+                      <button type="submit" className="menu-button-primary">
+                          TRANSMIT SCORE
                       </button>
                   </form>
-                  
-                  <button 
-                    className="restart-button leaderboard-button"
+
+                  <button
+                    className="menu-button-secondary"
                     onClick={handleViewLeaderboard}
                     style={{marginTop: '20px'}}
                   >
-                    View Leaderboard
+                    VIEW LEADERBOARD
                   </button>
-                  
-                  <button 
-                    className="restart-button"
+
+                  <button
+                    className="menu-button-secondary"
                     onClick={handleRestart}
                     style={{marginTop: '10px'}}
                   >
-                    Main Menu
+                    MAIN MENU
                   </button>
                 </div>
               )}
-              
-              {/* --- Leaderboard Overlay --- */}
+
+              {/* LEADERBOARD SCREEN */}
               {showLeaderboardScreen && (
                  <div className="leaderboard-overlay">
-                   <h2>HIGH SCORES </h2>
-                   
+                   <h2>[ TOP PILOTS ]</h2>
+
+                   {/* --- MODIFIED: Leaderboard Table --- */}
                    <table className="score-table">
                      <thead>
                        <tr>
                          <th>#</th>
-                         <th>Player</th>
-                         <th>Score</th>
+                         <th>CALLSIGN</th>
+                         <th>WAVE</th>
+                         <th>SCORE</th>
+                         <th>DAMAGE</th>
+                         <th>TIME</th>
                        </tr>
                      </thead>
                      <tbody>
@@ -533,32 +613,38 @@ function App() {
                          <tr key={index}>
                            <td>{index + 1}</td>
                            <td>{score.name}</td>
+                           <td>{score.wave_reached}</td>
                            <td>{score.score}</td>
+                           {/* Format damage with commas */}
+                           <td>{score.total_damage_dealt?.toLocaleString()}</td>
+                           {/* Format time */}
+                           <td>{formatTime(score.time_played)}</td>
                          </tr>
                        ))}
                      </tbody>
                    </table>
-                   
-                   <button 
-                     className="restart-button"
+                   {/* --- END MODIFIED --- */}
+
+                   <button
+                     className="menu-button-secondary"
                      onClick={handleRestart}
                      style={{marginTop: '30px'}}
                    >
-                     Return to Menu
+                     RETURN TO MENU
                    </button>
                  </div>
               )}
-        
-            </div> 
-            
+
+            </div>
+
             {/* The BulletHellGame component must be conditionally rendered HERE */}
             {gameStatus === 'playing' && (
-                <BulletHellGame 
+                <BulletHellGame
                     ref={gameInstanceRef}
-                    onUpdate={handleGameUpdate} 
+                    onUpdate={handleGameUpdate}
                     isPaused={isPaused}
                     onTogglePause={togglePause}
-                    onShowUpgrade={handleShowUpgrade} 
+                    onShowUpgrade={handleShowUpgrade}
                     onGameOverSubmit={handleGameOverSubmit}
                 />
             )}
@@ -570,21 +656,21 @@ function App() {
     <div className="App">
       {/* CRITICAL FIX: The ID for Phaser to attach to must ALWAYS be in the DOM */}
       <div id="game-container" style={{
-          position: 'absolute', 
-          top: 0, 
-          left: 0, 
-          width: '100%', 
-          height: '100%', 
-          zIndex: 1, 
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 1,
           background: '#000',
           // Optionally hide it completely when not playing to be safe, though CSS handles this.
-          visibility: gameStatus === 'playing' ? 'visible' : 'hidden' 
+          visibility: gameStatus === 'playing' ? 'visible' : 'hidden'
         }}>
         {/* Phaser canvas will be inserted here */}
       </div>
 
       {renderScreen()}
-      
+
     </div>
   );
 }
