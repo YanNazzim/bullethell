@@ -10,18 +10,17 @@
 }
 
 :root {
-    --color-primary: #61dafb; /* Neon Blue/Cyan */
-    --color-secondary: #C061FB; /* Plasma Purple */
+    --color-primary: #00ffc8; /* Bright Neon Green/Cyan for main focus */
+    --color-secondary: #ff00ff; /* Bright Magenta for accents */
     --color-danger: #FF4444; /* Neon Red */
-    /* --- MODIFIED: Renamed --color-xp to --color-progress --- */
     --color-progress: #C061FB; /* Plasma Purple */
     --color-background-dark: #0f0c29;
+    --color-background-glass: rgba(15, 12, 41, 0.95); /* Nearly opaque background for menus */
     --font-mono: 'Share Tech Mono', monospace;
-    --glow-primary: 0 0 8px var(--color-primary), 0 0 15px rgba(97, 218, 251, 0.5);
+    --glow-primary: 0 0 10px var(--color-primary), 0 0 20px rgba(0, 255, 200, 0.4);
+    --glow-secondary: 0 0 10px var(--color-secondary), 0 0 20px rgba(255, 0, 255, 0.4);
     --glow-danger: 0 0 8px var(--color-danger), 0 0 15px rgba(255, 68, 68, 0.5);
-    /* --- MODIFIED: Renamed --glow-xp to --glow-progress --- */
     --glow-progress: 0 0 8px var(--color-progress), 0 0 15px rgba(192, 97, 251, 0.5);
-    --glow-secondary: 0 0 8px var(--color-secondary), 0 0 15px rgba(192, 97, 251, 0.5);
 }
 
 /* --- UI OVERLAY & CONTAINERS --- */
@@ -129,6 +128,28 @@
     box-shadow: 0 0 15px var(--color-primary);
 }
 
+/* --- NEW: Stats Toggle Button Style (based on pause button) --- */
+.stats-toggle-button {
+    pointer-events: auto;
+    background: var(--color-background-dark);
+    color: var(--color-secondary);
+    border: 2px solid var(--color-secondary);
+    padding: 8px 12px;
+    font-size: 1.1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: var(--glow-secondary);
+    transition: all 0.2s ease;
+}
+
+.stats-toggle-button:hover {
+    background: var(--color-secondary);
+    color: var(--color-background-dark);
+    box-shadow: 0 0 15px var(--color-secondary);
+}
+/* --- END NEW --- */
+
+
 /* --- NEW: Timer Display Style --- */
 .timer-display {
     color: white;
@@ -141,24 +162,6 @@
     border-radius: 4px;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
-
-
-/* --- REMOVED: All old bar group styles (.bar-group-stacked, .bar-vertical) --- */
-
-
-/* --- MODIFIED: Global Health Bar Styles --- */
-/* (Used by top bar) */
-.health-bar-wrapper.health-low,
-.top-health-bar-container.health-low {
-    animation: healthPulse 1s infinite alternate;
-}
-
-.health-fill {
-    background: linear-gradient(to top, var(--color-danger), #ff8888);
-}
-
-
-/* --- REMOVED: All .progress- and .xp- styles --- */
 
 
 /* --- MODIFIED: Stats Table (now full-width) --- */
@@ -179,7 +182,22 @@
 
     position: static;
     margin-left: 0;
+    /* --- NEW: Add Transition for collapsing --- */
+    max-height: 500px; /* Large enough to cover max content */
+    overflow: hidden;
+    transition: all 0.3s ease-in-out;
 }
+
+/* --- NEW: Collapsed State for Stats Table --- */
+.player-stats-snug.collapsed {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+    border: none;
+    opacity: 0;
+}
+/* --- END NEW --- */
 
 .stat-group-header {
     font-size: 0.85rem;
@@ -207,7 +225,6 @@
     color: var(--color-primary);
 }
 
-/* --- REMOVED: .highlight-yellow --- */
 .stat-row .highlight-red { color: var(--color-danger); }
 .stat-row .highlight-purple { color: var(--color-secondary); }
 .stat-row .highlight-blue { color: var(--color-primary); }
@@ -216,7 +233,6 @@
 /* --- BOSS ROUND INDICATOR (Top Center) --- */
 .boss-round-indicator {
     position: absolute;
-    /* --- MODIFIED: Pushed down by health bar --- */
     top: 45px;
     left: 50%;
     transform: translateX(-50%);
@@ -249,7 +265,6 @@
     animation: none;
     padding: 0;
 
-    /* --- MODIFIED: Pushed down by health bar --- */
     top: 45px;
     left: 50%;
     transform: translateX(-50%);
@@ -307,7 +322,8 @@
   position: absolute;
   width: 100%;
   height: 100%;
-  background-color: rgba(15, 12, 41, 0.98); /* Near black space blue */
+  /* Use glass background for modern, slightly transparent look */
+  background-color: var(--color-background-glass); 
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -322,10 +338,11 @@
 
 /* Titles */
 .main-menu-overlay h1 {
-  margin: 0 0 30px 0;
+  margin: 0 0 40px 0; /* Increased margin */
   color: var(--color-primary);
-  font-size: 4rem;
+  font-size: 5rem; /* Larger Title */
   text-shadow: var(--glow-primary);
+  letter-spacing: 5px; /* Added spacing */
 }
 
 h2 {
@@ -344,11 +361,10 @@ h2 {
 .upgrade-overlay h2 {
     color: var(--color-progress);
     text-shadow: var(--glow-progress);
-    /* --- NEW: Reduced bottom margin --- */
     margin-bottom: 15px;
 }
 
-/* --- NEW: Style for upgrade description text --- */
+/* --- Style for upgrade description text --- */
 .upgrade-overlay p {
     font-size: 1rem;
     margin-bottom: 15px;
@@ -356,61 +372,83 @@ h2 {
 }
 
 
-/* Buttons */
+/* Buttons - MODERN STYLE OVERHAUL */
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px; /* Spacing between buttons */
+    width: 100%;
+    max-width: 400px; /* Constrain button width */
+}
+
 .menu-button-primary,
 .menu-button-secondary,
-.restart-button { /* Use for score submission/leaderboard */
+.restart-button {
+  width: 100%; /* Buttons fill the max-width container */
   padding: 15px 30px;
   font-size: 1.2rem;
   cursor: pointer;
-  border: none;
-  border-radius: 5px;
+  border: 2px solid;
+  border-radius: 0; /* Square edges for modern look */
   font-family: var(--font-mono);
   font-weight: bold;
   text-transform: uppercase;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease-out;
   pointer-events: auto;
-  margin: 5px 0;
+  margin: 0; /* Remove default margin */
 }
 
+/* Primary Button (Play/Start) */
 .menu-button-primary {
   background-color: var(--color-primary);
   color: var(--color-background-dark);
-  box-shadow: var(--glow-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 5px var(--color-primary); /* Subtle glow on border */
 }
 
 .menu-button-primary:hover {
-  background-color: white;
-  box-shadow: 0 0 20px white;
-  transform: scale(1.05);
+  background-color: var(--color-background-dark);
+  color: var(--color-primary);
+  box-shadow: var(--glow-primary);
+  transform: scale(1.02);
 }
 
+/* Secondary Button (Leaderboard/Options/Feedback) */
 .menu-button-secondary {
-  background-color: var(--color-background-dark);
+  background-color: transparent; /* Transparent background */
   color: var(--color-secondary);
-  border: 2px solid var(--color-secondary);
-  box-shadow: var(--glow-secondary);
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 5px var(--color-secondary);
 }
 
 .menu-button-secondary:hover {
   background-color: var(--color-secondary);
-  color: white;
-  box-shadow: 0 0 20px var(--color-secondary);
-  transform: scale(1.05);
+  color: var(--color-background-dark); /* Dark text on hover */
+  box-shadow: var(--glow-secondary);
+  transform: scale(1.02);
 }
 
 /* Score Submission Form */
+.score-submission-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+    max-width: 300px;
+}
 .score-submission-form input {
     padding: 12px;
     font-size: 1.1rem;
     background-color: var(--color-background-dark);
     color: var(--color-primary);
     border: 2px solid var(--color-primary);
-    border-radius: 5px;
+    border-radius: 0; /* Square edges */
     text-align: center;
     font-family: var(--font-mono);
-    width: 250px;
-    margin-bottom: 15px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* --- MODIFIED: Final score text uses primary color --- */
@@ -423,37 +461,23 @@ h2 {
 
 /* Leaderboard Table */
 .score-table {
-  width: 90%; /* Increased width */
-  max-width: 700px; /* Increased max-width */
+  width: 90%; 
+  max-width: 700px; 
   border-collapse: collapse;
   background: rgba(26, 26, 46, 0.9);
   border: 2px solid var(--color-primary);
-  box-shadow: var(--glow-primary);
+  box-shadow: 0 0 5px var(--color-primary); /* Subtle glow */
   font-size: 1.1rem;
-  table-layout: fixed; /* NEW: Helps with column widths */
+  table-layout: fixed;
 }
 
-/* --- NEW: Specific styles for the small table on main menu --- */
-.score-table.small-table {
-    font-size: 0.9rem; /* Smaller font */
-    max-width: 600px; /* Limit width */
-}
-.score-table.small-table th,
-.score-table.small-table td {
-    padding: 8px 4px; /* Tighter padding */
-    white-space: nowrap; /* Prevent wrapping */
-    overflow: hidden; /* Hide overflow */
-    text-overflow: ellipsis; /* Add ... if text too long */
-}
-/* --- END NEW --- */
-
-
+/* Leaderboard Table Headers/Cells (Clean, crisp look) */
 .score-table th, .score-table td {
-  padding: 12px 8px; /* Adjusted padding */
-  text-align: center; /* Center align for numbers */
+  padding: 12px 8px; 
+  text-align: center; 
   border-bottom: 1px solid rgba(97, 218, 251, 0.3);
   color: white;
-  white-space: nowrap; /* Prevent wrapping */
+  white-space: nowrap; 
 }
 
 /* Align name left */
@@ -461,37 +485,8 @@ h2 {
 .score-table td:nth-child(2) {
     text-align: left;
     padding-left: 15px;
-    width: 30%; /* Give name column more space */
+    width: 30%; 
 }
-
-/* --- MODIFIED: Adjust column widths --- */
-.score-table th:nth-child(1), /* Rank # */
-.score-table td:nth-child(1) { width: 8%; }
-.score-table th:nth-child(3), /* Wave */
-.score-table td:nth-child(3) { width: 12%; }
-.score-table th:nth-child(4), /* Score */
-.score-table td:nth-child(4) { width: 15%; }
-.score-table th:nth-child(5), /* Damage */
-.score-table td:nth-child(5) { width: 18%; }
-.score-table th:nth-child(6), /* Time */
-.score-table td:nth-child(6) { width: 15%; }
-
-/* --- NEW: Overrides for small table widths --- */
-.score-table.small-table th:nth-child(1),
-.score-table.small-table td:nth-child(1) { width: 10%; }
-.score-table.small-table th:nth-child(2),
-.score-table.small-table td:nth-child(2) { width: auto; padding-left: 8px;} /* Let name take remaining auto space */
-.score-table.small-table th:nth-child(3),
-.score-table.small-table td:nth-child(3) { width: 15%; }
-.score-table.small-table th:nth-child(4),
-.score-table.small-table td:nth-child(4) { width: 18%; }
-.score-table.small-table th:nth-child(5),
-.score-table.small-table td:nth-child(5) { width: 18%; }
-.score-table.small-table th:nth-child(6),
-.score-table.small-table td:nth-child(6) { width: 18%; }
-/* --- END NEW --- */
-
-
 
 .score-table th {
   background-color: var(--color-primary);
@@ -499,35 +494,31 @@ h2 {
   text-transform: uppercase;
 }
 
-/* --- MODIFIED: Leaderboard highlight uses primary color --- */
+/* Leaderboard First Place Highlight */
 .score-table tbody tr:nth-child(1) {
-    color: var(--color-primary); /* Gold for first place */
+    color: var(--color-secondary); /* Highlight winner with accent color */
     font-size: 1.3rem;
-    text-shadow: var(--glow-primary);
+    text-shadow: var(--glow-secondary);
 }
-/* --- NEW: Highlight for small table needs adjustment --- */
-.score-table.small-table tbody tr:nth-child(1) {
-    font-size: 1.1rem; /* Adjust highlight size for small table */
-}
+
 
 /* --- UPGRADE MENU SCALING --- */
 .upgrade-overlay {
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* --- MODIFIED: Align content top, allow scrolling --- */
     justify-content: flex-start;
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(15, 12, 41, 0.98);
+    background-color: var(--color-background-glass);
     z-index: 500;
     color: white;
     pointer-events: auto;
-    overflow-y: auto; /* Ensure vertical scroll is always possible */
-    padding: 20px 10px; /* Adjusted padding */
+    overflow-y: auto; 
+    padding: 20px 10px; 
     box-sizing: border-box;
 }
 
@@ -536,21 +527,19 @@ h2 {
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: center;
-  /* --- MODIFIED: Reduced gap, added padding --- */
   gap: 15px;
-  margin-top: 0; /* Removed top margin */
+  margin-top: 0; 
   width: 100%;
   max-width: 700px;
-  padding-bottom: 20px; /* Space at the bottom */
+  padding-bottom: 20px; 
 }
 
 .upgrade-card {
   background: rgba(26, 26, 46, 0.9);
   border: 2px solid var(--color-secondary);
-  box-shadow: var(--glow-secondary);
+  box-shadow: 0 0 5px var(--color-secondary); /* Less intense glow for the cards */
 
   width: 200px;
-  /* --- MODIFIED: Reduced min-height --- */
   min-height: 230px;
   padding: 15px;
   color: white;
@@ -559,7 +548,7 @@ h2 {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  border-radius: 10px;
+  border-radius: 4px; /* Slightly rounded edges for cards */
 
   transition: all 0.2s ease-in-out;
 }
@@ -567,32 +556,28 @@ h2 {
 .upgrade-card:hover {
   transform: scale(1.05);
   background: var(--color-background-dark);
-  box-shadow: 0 0 15px var(--color-secondary), 0 0 30px var(--color-secondary);
+  box-shadow: var(--glow-secondary);
 }
 
-/* --- MODIFIED: Upgrade card title uses progress color --- */
 .upgrade-card h3 {
-    font-size: 1.1rem; /* Slightly smaller */
+    font-size: 1.1rem; 
     color: var(--color-progress);
     text-shadow: var(--glow-progress);
-    margin-bottom: 5px; /* Added margin */
+    margin-bottom: 5px; 
 }
 .upgrade-card img {
-    /* --- MODIFIED: Reduced image size --- */
     width: 70px;
     height: 70px;
     margin-bottom: 8px;
 }
 .upgrade-card p {
-    font-size: 0.85rem; /* Slightly smaller */
+    font-size: 0.85rem; 
     margin-bottom: 8px;
 }
 .upgrade-card .level-badge {
-    font-size: 0.8rem; /* Slightly smaller */
+    font-size: 0.8rem; 
     padding: 2px 6px;
 }
-/* --- END UPGRADE MENU SCALING --- */
-
 
 /* --- NEW: Wave Announcement Overlay --- */
 .wave-announcement-overlay {
@@ -605,7 +590,7 @@ h2 {
     align-items: center;
     justify-content: center;
     pointer-events: none;
-    z-index: 800; /* Below overlays, above game */
+    z-index: 800; 
     animation: fadeOut 2.5s ease-out forwards;
 }
 
@@ -643,193 +628,84 @@ h2 {
 }
 
 
-/* --- RESPONSIVENESS --- */
-
-/* --- REMOVED: All @media queries for layout --- */
-/* Layout is now unified */
-
-/* --- MODIFIED: Media query for font sizes and upgrade cards only --- */
+/* --- RESPONSIVENESS (Adjusted to new design) --- */
 @media (max-width: 820px) {
-    h1 { font-size: 3rem; }
-    h2 { font-size: 2rem; }
+    .main-menu-overlay h1 { font-size: 4rem; }
+    h2 { font-size: 2.5rem; }
+
+    .menu-buttons {
+        max-width: 300px;
+    }
+    .menu-button-primary,
+    .menu-button-secondary {
+        font-size: 1.1rem;
+    }
 
     .boss-round-indicator {
         font-size: 1.2rem;
-        padding: 6px 12px;
-    }
-    .boss-direction-arrow-container {
-        width: 45px;
-        height: 30px;
-    }
-    .boss-direction-arrow {
-        width: 30px;
-        height: 6px;
-    }
-    .boss-direction-arrow::after {
-        right: -20px;
-        top: -12px;
-        border-top: 16px solid transparent;
-        border-bottom: 16px solid transparent;
-        border-left: 20px solid var(--color-danger);
     }
 
-    /* Responsive adjustment for upgrade cards (allows 3 across on most tablets) */
-    .upgrade-choices {
-        gap: 15px;
-        max-width: 700px;
+    /* Stats toggle button size adjustment */
+    .stats-toggle-button {
+        font-size: 0.9rem;
     }
+
+    /* Responsive adjustment for upgrade cards */
     .upgrade-card {
-        width: 180px; /* Slightly smaller */
-        min-height: 220px; /* Slightly smaller */
+        width: 170px; 
     }
-
-    .wave-announcement-overlay h1 {
-        font-size: 3.5rem;
-    }
-
-    .score-table {
-        font-size: 1rem; /* Smaller font on leaderboard */
-    }
-    .score-table th, .score-table td {
-        padding: 10px 5px; /* Tighter padding */
-    }
-
 }
 
 
 @media (max-width: 600px) {
-    .main-menu-overlay h1 { font-size: 2.5rem; }
-    h2 { font-size: 1.8rem; }
+    .main-menu-overlay h1 { font-size: 3rem; margin-bottom: 30px; }
+    h2 { font-size: 2rem; }
 
-    .pause-button {
+    .menu-buttons {
+        max-width: 90%;
+    }
+    .menu-button-primary,
+    .menu-button-secondary {
+        padding: 12px 20px;
+        font-size: 1rem;
+    }
+
+    .pause-button, .player-level-box, .stats-toggle-button, .timer-display {
         padding: 6px 10px;
         font-size: 0.9rem;
     }
 
-    .player-level-box {
-        padding: 6px 10px;
-        font-size: 0.9rem;
-    }
-
-    .timer-display {
-        padding: 6px 10px;
-        font-size: 0.9rem;
-    }
-
-    .top-health-bar-container {
-        height: 25px;
-    }
-    .top-health-bar-container .bar-label {
-        font-size: 0.8rem;
-    }
+    .top-health-bar-container { height: 25px; }
 
     .player-stats-snug {
         font-size: 0.8rem;
-        padding: 8px;
     }
 
-    /* Upgrade Menu: Stack Cards Vertically (using 90% width) */
+    /* Upgrade Menu: Stack Cards Vertically */
     .upgrade-choices {
         flex-direction: column;
-        gap: 10px; /* Reduced gap */
         align-items: center;
-        padding-top: 0;
     }
     .upgrade-card {
         width: 90%;
-        max-width: 350px; /* Reduced max width */
-        min-height: auto; /* Allow height to shrink */
-        padding: 10px; /* Reduced padding */
-    }
-    .upgrade-card h3 { font-size: 1rem; }
-    .upgrade-card img { width: 60px; height: 60px; }
-    .upgrade-card p { font-size: 0.8rem; }
-    .upgrade-card .level-badge { font-size: 0.75rem; }
-
-
-    /* Boss Indicator */
-    .boss-round-indicator {
-        font-size: 1rem;
-        padding: 4px 8px;
-        gap: 5px;
-    }
-    .boss-direction-arrow-container {
-        width: 35px;
-        height: 25px;
-    }
-    .boss-direction-arrow {
-        width: 25px;
-        height: 4px;
-    }
-     .boss-direction-arrow::after {
-        right: -15px;
-        top: -10px;
-        border-top: 12px solid transparent;
-        border-bottom: 12px solid transparent;
-        border-left: 15px solid var(--color-danger);
-    }
-
-    .wave-announcement-overlay h1 {
-        font-size: 2.5rem;
+        max-width: 300px; 
     }
 
     .score-table {
-        font-size: 0.75rem; /* Even smaller font on mobile leaderboard */
-        width: 98%; /* Wider table */
-    }
-     .score-table th, .score-table td {
-        padding: 6px 2px; /* Even tighter padding */
-    }
-     /* Align name left */
-    .score-table th:nth-child(2),
-    .score-table td:nth-child(2) {
-        padding-left: 5px;
+        font-size: 0.85rem; 
+        width: 100%; 
     }
 }
 
-/* --- NEW: Media queries for short screens (height) --- */
-@media (max-height: 700px) {
-    .upgrade-overlay h2 {
-        font-size: 1.8rem;
-        margin-bottom: 10px;
-    }
-    .upgrade-overlay p {
-        font-size: 0.9rem;
-        margin-bottom: 10px;
-    }
-    .upgrade-card {
-        width: 170px;
-        min-height: 200px;
-        padding: 10px;
-    }
-     .upgrade-card img {
-        width: 60px;
-        height: 60px;
-    }
-    .upgrade-card h3 { font-size: 1rem; }
-    .upgrade-card p { font-size: 0.8rem; }
+/* --- NEW: Style for buttons in the leaderboard mode toggle container --- */
+.leaderboard-overlay .menu-buttons {
+    flex-direction: row; /* Horizontal alignment for the toggles */
+    max-width: 600px; 
+    width: 90%;
+    gap: 10px;
 }
-
-@media (max-height: 550px) {
-     .upgrade-overlay h2 {
-        font-size: 1.5rem;
-        margin-bottom: 5px;
-    }
-    .upgrade-overlay p {
-        font-size: 0.8rem;
-        margin-bottom: 5px;
-    }
-    .upgrade-choices { gap: 8px; }
-    .upgrade-card {
-        width: 150px;
-        min-height: 180px;
-        padding: 8px;
-    }
-     .upgrade-card img {
-        width: 50px;
-        height: 50px;
-    }
-    .upgrade-card h3 { font-size: 0.9rem; }
-    .upgrade-card p { font-size: 0.75rem; }
-    .upgrade-card .level-badge { font-size: 0.7rem; }
+.leaderboard-overlay .menu-buttons button {
+    font-size: 0.9rem;
+    padding: 10px 15px;
+    flex-grow: 1; /* Make buttons share space evenly */
 }
